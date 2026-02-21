@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { dashboardApi } from '@/api/dashboard';
+import { mockDashboardApi } from '@/data/mockApi';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -10,30 +10,23 @@ import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
 interface DashboardData {
-  total_appointments?: number;
-  upcoming_appointments?: number;
-  completed_appointments?: number;
-  cancelled_appointments?: number;
-  next_appointment?: {
+  total_appointments: number;
+  upcoming_appointments: number;
+  completed_appointments: number;
+  cancelled_appointments: number;
+  next_appointment: {
     id: number;
     date: string;
     start_time: string;
-    doctor?: { first_name: string; last_name: string; doctor?: { specialization: string } };
-  };
-  upcoming?: Array<{
+    doctor?: { id: number; first_name: string; last_name: string; doctor?: { specialization: string } };
+  } | null;
+  upcoming: Array<{
     id: number;
     date: string;
     start_time: string;
-    doctor?: { first_name: string; last_name: string; doctor?: { specialization: string } };
+    doctor?: { id: number; first_name: string; last_name: string; doctor?: { specialization: string } };
   }>;
 }
-
-const statusBadge: Record<string, { label: string; className: string }> = {
-  scheduled: { label: 'Planifié', className: 'bg-primary/10 text-primary' },
-  confirmed: { label: 'Confirmé', className: 'bg-primary/10 text-primary' },
-  completed: { label: 'Terminé', className: 'bg-success/10 text-success' },
-  cancelled: { label: 'Annulé', className: 'bg-destructive/10 text-destructive' },
-};
 
 const PatientDashboard = () => {
   const { user } = useAuth();
@@ -44,24 +37,19 @@ const PatientDashboard = () => {
   useEffect(() => {
     const fetch = async () => {
       try {
-        const res = await dashboardApi.patient();
-        setData(res.data);
+        const res = await mockDashboardApi.patient(user!.id);
+        setData(res as DashboardData);
       } catch {
-        // API not available — show empty state
-        setData({});
+        setData(null);
       } finally {
         setLoading(false);
       }
     };
-    fetch();
-  }, []);
+    if (user) fetch();
+  }, [user]);
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
   }
 
   const stats = [
@@ -75,9 +63,7 @@ const PatientDashboard = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">
-            Bonjour, {user?.first_name} 👋
-          </h1>
+          <h1 className="text-2xl font-bold text-foreground">Bonjour, {user?.first_name} 👋</h1>
           <p className="text-muted-foreground">Voici un aperçu de vos rendez-vous</p>
         </div>
         <Button onClick={() => navigate('/patient/book')} className="gap-2">
@@ -86,7 +72,6 @@ const PatientDashboard = () => {
         </Button>
       </div>
 
-      {/* Stats */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((stat) => (
           <Card key={stat.label} className="stat-card-shadow transition-shadow hover:stat-card-shadow-hover">
@@ -103,12 +88,9 @@ const PatientDashboard = () => {
         ))}
       </div>
 
-      {/* Next appointment */}
       {data?.next_appointment && (
         <Card className="border-primary/20 bg-primary/5">
-          <CardHeader>
-            <CardTitle className="text-lg">Prochain rendez-vous</CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle className="text-lg">Prochain rendez-vous</CardTitle></CardHeader>
           <CardContent className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
@@ -118,28 +100,21 @@ const PatientDashboard = () => {
                 <p className="font-semibold text-foreground">
                   Dr. {data.next_appointment.doctor?.first_name} {data.next_appointment.doctor?.last_name}
                 </p>
-                <p className="text-sm text-muted-foreground">
-                  {data.next_appointment.doctor?.doctor?.specialization}
-                </p>
+                <p className="text-sm text-muted-foreground">{data.next_appointment.doctor?.doctor?.specialization}</p>
                 <p className="mt-1 text-sm font-medium text-primary">
                   {format(new Date(data.next_appointment.date), 'EEEE d MMMM yyyy', { locale: fr })} à {data.next_appointment.start_time}
                 </p>
               </div>
             </div>
-            <Button variant="outline" onClick={() => navigate(`/patient/appointments`)}>
-              Voir détails
-            </Button>
+            <Button variant="outline" onClick={() => navigate('/patient/appointments')}>Voir détails</Button>
           </CardContent>
         </Card>
       )}
 
-      {/* Upcoming list */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-lg">Rendez-vous à venir</CardTitle>
-          <Button variant="ghost" size="sm" onClick={() => navigate('/patient/appointments')}>
-            Voir tout
-          </Button>
+          <Button variant="ghost" size="sm" onClick={() => navigate('/patient/appointments')}>Voir tout</Button>
         </CardHeader>
         <CardContent>
           {data?.upcoming && data.upcoming.length > 0 ? (
@@ -151,17 +126,11 @@ const PatientDashboard = () => {
                       <Stethoscope className="h-5 w-5 text-muted-foreground" />
                     </div>
                     <div>
-                      <p className="text-sm font-medium text-foreground">
-                        Dr. {apt.doctor?.first_name} {apt.doctor?.last_name}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {format(new Date(apt.date), 'd MMM yyyy', { locale: fr })} — {apt.start_time}
-                      </p>
+                      <p className="text-sm font-medium text-foreground">Dr. {apt.doctor?.first_name} {apt.doctor?.last_name}</p>
+                      <p className="text-xs text-muted-foreground">{format(new Date(apt.date), 'd MMM yyyy', { locale: fr })} — {apt.start_time}</p>
                     </div>
                   </div>
-                  <Badge variant="secondary" className="text-xs">
-                    {apt.doctor?.doctor?.specialization || 'Consultation'}
-                  </Badge>
+                  <Badge variant="secondary" className="text-xs">{apt.doctor?.doctor?.specialization || 'Consultation'}</Badge>
                 </div>
               ))}
             </div>
@@ -169,9 +138,7 @@ const PatientDashboard = () => {
             <div className="py-8 text-center text-muted-foreground">
               <Calendar className="mx-auto mb-3 h-10 w-10 opacity-40" />
               <p>Aucun rendez-vous à venir</p>
-              <Button variant="link" onClick={() => navigate('/patient/book')} className="mt-2">
-                Prendre un rendez-vous
-              </Button>
+              <Button variant="link" onClick={() => navigate('/patient/book')} className="mt-2">Prendre un rendez-vous</Button>
             </div>
           )}
         </CardContent>
