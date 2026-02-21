@@ -1,5 +1,6 @@
 import { createContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import { authApi, User } from '@/api/auth';
+import { User } from '@/api/auth';
+import { mockAuthApi } from '@/data/mockAuth';
 
 interface AuthContextType {
   user: User | null;
@@ -24,9 +25,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem('auth_token');
     const savedUser = localStorage.getItem('auth_user');
-    if (token && savedUser) {
+    if (savedUser) {
       try {
         setUser(JSON.parse(savedUser));
       } catch {
@@ -38,8 +38,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
-    const res = await authApi.login({ email, password });
-    const { token, user } = res.data;
+    const { token, user } = await mockAuthApi.login(email, password);
     localStorage.setItem('auth_token', token);
     localStorage.setItem('auth_user', JSON.stringify(user));
     setUser(user);
@@ -55,8 +54,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     role?: string;
     phone?: string;
   }) => {
-    const res = await authApi.register(data);
-    const { token, user } = res.data;
+    const { token, user } = await mockAuthApi.register(data);
     localStorage.setItem('auth_token', token);
     localStorage.setItem('auth_user', JSON.stringify(user));
     setUser(user);
@@ -64,11 +62,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const logout = useCallback(async () => {
-    try {
-      await authApi.logout();
-    } catch {
-      // ignore
-    }
+    await mockAuthApi.logout();
     localStorage.removeItem('auth_token');
     localStorage.removeItem('auth_user');
     setUser(null);
