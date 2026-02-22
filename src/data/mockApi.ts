@@ -7,6 +7,7 @@ import {
   removeMockAppointment,
   markNotificationRead,
   markAllNotificationsRead,
+  deleteNotification,
 } from '@/data/mockData';
 import { Appointment } from '@/api/appointments';
 import { Doctor } from '@/api/doctors';
@@ -106,6 +107,11 @@ export const mockNotificationsApi = {
   markAllAsRead: async () => {
     await delay(200);
     markAllNotificationsRead();
+  },
+
+  delete: async (id: number) => {
+    await delay(200);
+    deleteNotification(id);
   },
 };
 
