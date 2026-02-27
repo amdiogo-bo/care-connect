@@ -28,20 +28,46 @@ export interface User {
   };
 }
 
+export interface ApiResponse<T> {
+  success: boolean;
+  message: string;
+  data: T;
+  meta?: {
+    current_page?: number;
+    total?: number;
+  };
+}
+
 export interface LoginResponse {
   token: string;
   user: User;
 }
 
 export const authApi = {
-  login: (data: LoginPayload) =>
-    apiClient.post<LoginResponse>('/login', data),
+  login: async (data: LoginPayload): Promise<LoginResponse> => {
+    const res = await apiClient.post<ApiResponse<LoginResponse>>('/login', data);
+    return res.data.data;
+  },
 
-  register: (data: RegisterPayload) =>
-    apiClient.post<LoginResponse>('/register', data),
+  register: async (data: RegisterPayload): Promise<LoginResponse> => {
+    const res = await apiClient.post<ApiResponse<LoginResponse>>('/register', data);
+    return res.data.data;
+  },
 
-  me: () =>
-    apiClient.get<User>('/me'),
+  me: async (): Promise<User> => {
+    const res = await apiClient.get<ApiResponse<User>>('/me');
+    return res.data.data;
+  },
+
+  updateProfile: async (data: Partial<{ first_name: string; last_name: string; email: string; phone: string }>): Promise<User> => {
+    const res = await apiClient.put<ApiResponse<User>>('/me', data);
+    return res.data.data;
+  },
+
+  updatePassword: async (data: { current_password: string; password: string; password_confirmation: string }) => {
+    const res = await apiClient.put<ApiResponse<null>>('/me/password', data);
+    return res.data;
+  },
 
   logout: () =>
     apiClient.post('/logout'),
