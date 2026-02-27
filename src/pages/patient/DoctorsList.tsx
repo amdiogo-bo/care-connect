@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { mockDoctorsApi } from '@/data/mockApi';
+import { doctorsApi } from '@/api/doctors';
 import { Doctor } from '@/api/doctors';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -16,9 +16,14 @@ const DoctorsList = () => {
 
   useEffect(() => {
     const fetch = async () => {
-      const data = await mockDoctorsApi.list();
-      setDoctors(data);
-      setLoading(false);
+      try {
+        const response = await doctorsApi.list();
+        setDoctors(response.data);
+      } catch (error) {
+        console.error('Erreur lors du chargement des docteurs:', error);
+      } finally {
+        setLoading(false);
+      }
     };
     fetch();
   }, []);

@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { mockDoctorsApi, mockAppointmentsApi } from '@/data/mockApi';
+import { doctorsApi } from '@/api/doctors';
+import { appointmentsApi } from '@/api/appointments';
 import { Doctor } from '@/api/doctors';
 import { TimeSlot } from '@/api/appointments';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -40,14 +41,19 @@ const BookAppointment = () => {
 
   useEffect(() => {
     const fetch = async () => {
-      const data = await mockDoctorsApi.list();
-      setDoctors(data);
-      const preselectedId = (location.state as { doctorId?: number })?.doctorId;
-      if (preselectedId) {
-        const doc = data.find((d) => d.id === preselectedId);
-        if (doc) { setSelectedDoctor(doc); setStep(1); }
+      try {
+        const response = await doctorsApi.list();
+        setDoctors(response.data);
+        const preselectedId = (location.state as { doctorId?: number })?.doctorId;
+        if (preselectedId) {
+          const doctor = response.data.find((d: Doctor) => d.id === preselectedId);
+          if (doctor) setSelectedDoctor(doctor);
+        }
+      } catch (error) {
+        console.error('Erreur lors du chargement des docteurs:', error);
+      } finally {
+        setLoadingDoctors(false);
       }
-      setLoadingDoctors(false);
     };
     fetch();
   }, [location.state]);
@@ -57,9 +63,15 @@ const BookAppointment = () => {
     const fetch = async () => {
       setLoadingSlots(true);
       setSelectedSlot(null);
-      const res = await mockAppointmentsApi.availableSlots(selectedDoctor.id, format(selectedDate, 'yyyy-MM-dd'));
-      setSlots(res.available_slots || []);
-      setLoadingSlots(false);
+      try {
+        const response = await appointmentsApi.availableSlots(selectedDoctor.id, format(selectedDate, 'yyyy-MM-dd'));
+        setSlots(response.data.available_slots || []);
+      } catch (error) {
+        console.error('Erreur lors du chargement des créneaux:', error);
+        setSlots([]);
+      } finally {
+        setLoadingSlots(false);
+      }
     };
     fetch();
   }, [selectedDoctor, selectedDate]);
@@ -68,7 +80,7 @@ const BookAppointment = () => {
     if (!selectedDoctor || !selectedDate || !selectedSlot || !user) return;
     setSubmitting(true);
     try {
-      await mockAppointmentsApi.create({
+      await appointmentsApi.create({
         patient_id: user.id,
         doctor_id: selectedDoctor.id,
         date: format(selectedDate, 'yyyy-MM-dd'),
@@ -79,7 +91,8 @@ const BookAppointment = () => {
       });
       setSuccess(true);
       toast({ title: 'Rendez-vous confirmé !', description: 'Votre rendez-vous a bien été enregistré.' });
-    } catch {
+    } catch (error) {
+      console.error('Erreur lors de la réservation:', error);
       toast({ title: 'Erreur', description: 'Erreur lors de la réservation', variant: 'destructive' });
     } finally {
       setSubmitting(false);

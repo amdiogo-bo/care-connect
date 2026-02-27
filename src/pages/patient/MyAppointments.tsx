@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { mockAppointmentsApi } from '@/data/mockApi';
+import { appointmentsApi } from '@/api/appointments';
 import { Appointment } from '@/api/appointments';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -30,17 +30,27 @@ const MyAppointments = () => {
   const { toast } = useToast();
 
   const fetchAppointments = async () => {
-    const data = await mockAppointmentsApi.list(user!.id, user!.role);
-    setAppointments(data);
-    setLoading(false);
+    try {
+      const response = await appointmentsApi.list();
+      setAppointments(response.data);
+    } catch (error) {
+      console.error('Erreur lors du chargement des rendez-vous:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { if (user) fetchAppointments(); }, [user]);
 
   const cancelAppointment = async (id: number) => {
-    await mockAppointmentsApi.cancel(id);
-    toast({ title: 'Rendez-vous annulé' });
-    fetchAppointments();
+    try {
+      await appointmentsApi.cancel(id);
+      toast({ title: 'Rendez-vous annulé' });
+      fetchAppointments();
+    } catch (error) {
+      console.error('Erreur lors de l\'annulation:', error);
+      toast({ title: 'Erreur', description: 'Erreur lors de l\'annulation', variant: 'destructive' });
+    }
   };
 
   const now = new Date().toISOString().split('T')[0];

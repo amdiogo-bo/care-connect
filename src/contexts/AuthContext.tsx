@@ -1,8 +1,5 @@
 import { createContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { User, authApi } from '@/api/auth';
-import { mockAuthApi } from '@/data/mockAuth';
-
-const USE_MOCK = import.meta.env.VITE_USE_MOCK !== 'false';
 
 interface AuthContextType {
   user: User | null;
@@ -40,23 +37,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
-    let token: string;
-    let loggedUser: User;
-
-    if (USE_MOCK) {
-      const result = await mockAuthApi.login(email, password);
-      token = result.token;
-      loggedUser = result.user;
-    } else {
-      const result = await authApi.login({ email, password });
-      token = result.token;
-      loggedUser = result.user;
+    console.log('Tentative de login avec:', { email, password });
+    try {
+      const response = await authApi.login({ email, password });
+      console.log('Réponse API:', response);
+      const { token, user } = response;
+      localStorage.setItem('auth_token', token);
+      localStorage.setItem('auth_user', JSON.stringify(user));
+      setUser(user);
+      return user;
+    } catch (error) {
+      console.error('Erreur login:', error);
+      throw error;
     }
-
-    localStorage.setItem('auth_token', token);
-    localStorage.setItem('auth_user', JSON.stringify(loggedUser));
-    setUser(loggedUser);
-    return loggedUser;
   }, []);
 
   const register = useCallback(async (data: {
@@ -68,30 +61,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     role?: string;
     phone?: string;
   }) => {
-    let token: string;
-    let registeredUser: User;
-
-    if (USE_MOCK) {
-      const result = await mockAuthApi.register(data);
-      token = result.token;
-      registeredUser = result.user;
-    } else {
-      const result = await authApi.register(data);
-      token = result.token;
-      registeredUser = result.user;
-    }
-
+    const response = await authApi.register(data);
+    const { token, user } = response;
     localStorage.setItem('auth_token', token);
-    localStorage.setItem('auth_user', JSON.stringify(registeredUser));
-    setUser(registeredUser);
-    return registeredUser;
+    localStorage.setItem('auth_user', JSON.stringify(user));
+    setUser(user);
+    return user;
   }, []);
 
   const logout = useCallback(async () => {
-    if (USE_MOCK) {
-      await mockAuthApi.logout();
-    } else {
-      try { await authApi.logout(); } catch { /* ignore */ }
+    try {
+      await authApi.logout();
+    } catch {
+      // Ignorer les erreurs de déconnexion
     }
     localStorage.removeItem('auth_token');
     localStorage.removeItem('auth_user');

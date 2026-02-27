@@ -52,7 +52,7 @@ export interface CreateAppointmentPayload {
 
 export const appointmentsApi = {
   list: async (): Promise<Appointment[]> => {
-    const res = await apiClient.get<ApiResponse<Appointment[]>>('/appointments');
+    const res = await apiClient.get<ApiResponse<Appointment[]>>('/appointments-simple');
     return res.data.data;
   },
 
@@ -62,7 +62,7 @@ export const appointmentsApi = {
   },
 
   create: async (data: CreateAppointmentPayload): Promise<Appointment> => {
-    const res = await apiClient.post<ApiResponse<Appointment>>('/appointments', data);
+    const res = await apiClient.post<ApiResponse<Appointment>>('/appointments-simple', data);
     return res.data.data;
   },
 

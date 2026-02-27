@@ -45,17 +45,17 @@ export interface LoginResponse {
 
 export const authApi = {
   login: async (data: LoginPayload): Promise<LoginResponse> => {
-    const res = await apiClient.post<ApiResponse<LoginResponse>>('/login', data);
+    const res = await apiClient.post<ApiResponse<LoginResponse>>('/login-simple', data);
     return res.data.data;
   },
 
   register: async (data: RegisterPayload): Promise<LoginResponse> => {
-    const res = await apiClient.post<ApiResponse<LoginResponse>>('/register', data);
+    const res = await apiClient.post<ApiResponse<LoginResponse>>('/register-simple', data);
     return res.data.data;
   },
 
   me: async (): Promise<User> => {
-    const res = await apiClient.get<ApiResponse<User>>('/me');
+    const res = await apiClient.get<ApiResponse<User>>('/me-simple');
     return res.data.data;
   },
 
@@ -70,5 +70,5 @@ export const authApi = {
   },
 
   logout: () =>
-    apiClient.post('/logout'),
+    apiClient.post('/logout-simple'),
 };
