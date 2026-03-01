@@ -32,7 +32,7 @@ const MyAppointments = () => {
   const fetchAppointments = async () => {
     try {
       const response = await appointmentsApi.list();
-      setAppointments(response.data);
+      setAppointments(response);
     } catch (error) {
       console.error('Erreur lors du chargement des rendez-vous:', error);
     } finally {

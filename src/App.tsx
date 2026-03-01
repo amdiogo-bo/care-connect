@@ -46,6 +46,11 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
 
+            {/* Routes d'alias pour accès direct */}
+            <Route path="/doctors" element={<Navigate to="/patient/doctors" replace />} />
+            <Route path="/book" element={<Navigate to="/patient/book" replace />} />
+            <Route path="/appointments" element={<Navigate to="/patient/appointments" replace />} />
+
             {/* Patient */}
             <Route element={<ProtectedRoute allowedRoles={['patient']}><AppLayout /></ProtectedRoute>}>
               <Route path="/patient" element={<PatientDashboard />} />

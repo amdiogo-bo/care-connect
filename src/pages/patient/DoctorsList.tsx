@@ -18,7 +18,7 @@ const DoctorsList = () => {
     const fetch = async () => {
       try {
         const response = await doctorsApi.list();
-        setDoctors(response.data);
+        setDoctors(response);
       } catch (error) {
         console.error('Erreur lors du chargement des docteurs:', error);
       } finally {

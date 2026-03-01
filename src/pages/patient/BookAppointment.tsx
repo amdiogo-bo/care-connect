@@ -43,10 +43,10 @@ const BookAppointment = () => {
     const fetch = async () => {
       try {
         const response = await doctorsApi.list();
-        setDoctors(response.data);
+        setDoctors(response);
         const preselectedId = (location.state as { doctorId?: number })?.doctorId;
         if (preselectedId) {
-          const doctor = response.data.find((d: Doctor) => d.id === preselectedId);
+          const doctor = response.find((d: Doctor) => d.id === preselectedId);
           if (doctor) setSelectedDoctor(doctor);
         }
       } catch (error) {
@@ -56,7 +56,7 @@ const BookAppointment = () => {
       }
     };
     fetch();
-  }, [location.state]);
+  }, []);
 
   useEffect(() => {
     if (!selectedDoctor || !selectedDate) return;
@@ -65,7 +65,7 @@ const BookAppointment = () => {
       setSelectedSlot(null);
       try {
         const response = await appointmentsApi.availableSlots(selectedDoctor.id, format(selectedDate, 'yyyy-MM-dd'));
-        setSlots(response.data.available_slots || []);
+        setSlots(response.available_slots || []);
       } catch (error) {
         console.error('Erreur lors du chargement des créneaux:', error);
         setSlots([]);
