@@ -1,17 +1,39 @@
-import { useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { BarChart3, TrendingUp, Users, CheckCircle } from 'lucide-react';
+import { USE_MOCK } from '@/lib/useMock';
+import { BarChart3, TrendingUp, Users, CheckCircle, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { mockAppointments } from '@/data/mockData';
+import { doctorsApi } from '@/api/doctors';
 
 const COLORS = ['hsl(217,91%,60%)', 'hsl(160,84%,39%)', 'hsl(38,92%,50%)', 'hsl(0,84%,60%)'];
 
 const StatsPage = () => {
   const { user } = useAuth();
   const doctorId = user?.id || 0;
+  const [apiStats, setApiStats] = useState<any>(null);
+  const [loading, setLoading] = useState(!USE_MOCK);
+
+  useEffect(() => {
+    if (!USE_MOCK) {
+      const load = async () => {
+        try {
+          const data = await doctorsApi.stats();
+          setApiStats(data);
+        } catch (error) {
+          console.error('Erreur chargement stats:', error);
+        } finally {
+          setLoading(false);
+        }
+      };
+      load();
+    }
+  }, []);
 
   const stats = useMemo(() => {
+    if (!USE_MOCK && apiStats) return apiStats;
+
     const apts = mockAppointments.filter((a) => a.doctor_id === doctorId);
     const total = apts.length;
     const completed = apts.filter((a) => a.status === 'completed').length;
@@ -39,7 +61,9 @@ const StatsPage = () => {
     ];
 
     return { total, completed, cancelled, patients, rate, monthly, statusBreakdown, typeBreakdown };
-  }, [doctorId]);
+  }, [doctorId, apiStats]);
+
+  if (loading) return <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
 
   return (
     <div className="space-y-6">
@@ -87,7 +111,7 @@ const StatsPage = () => {
             <ResponsiveContainer width="100%" height={250}>
               <PieChart>
                 <Pie data={stats.statusBreakdown} cx="50%" cy="50%" outerRadius={80} dataKey="value" label={({ name, value }) => `${name}: ${value}`}>
-                  {stats.statusBreakdown.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                  {stats.statusBreakdown.map((_: any, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                 </Pie>
                 <Tooltip />
               </PieChart>
@@ -101,7 +125,7 @@ const StatsPage = () => {
             <ResponsiveContainer width="100%" height={250}>
               <PieChart>
                 <Pie data={stats.typeBreakdown} cx="50%" cy="50%" outerRadius={80} dataKey="value" label={({ name, value }) => `${name}: ${value}`}>
-                  {stats.typeBreakdown.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                  {stats.typeBreakdown.map((_: any, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                 </Pie>
                 <Tooltip />
               </PieChart>

@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Bell, BellOff, Check, CheckCheck, Trash2, Mail, MessageSquare, Smartphone, Clock } from 'lucide-react';
+import { USE_MOCK } from '@/lib/useMock';
+import { Bell, BellOff, Check, CheckCheck, Trash2, Mail, MessageSquare, Smartphone, Clock, Loader2 } from 'lucide-react';
 import { mockNotificationsApi } from '@/data/mockApi';
-import { Notification } from '@/api/notifications';
+import { notificationsApi, Notification } from '@/api/notifications';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 
@@ -24,31 +25,38 @@ const channelIcons: Record<string, { icon: React.ElementType; label: string }> =
   in_app: { icon: Bell, label: 'In-app' },
 };
 
+const api = () => USE_MOCK ? mockNotificationsApi : notificationsApi;
+
 const NotificationsPage = () => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [filter, setFilter] = useState<'all' | 'unread' | 'read'>('all');
   const [loading, setLoading] = useState(true);
 
   const fetchNotifications = async () => {
-    const data = await mockNotificationsApi.list();
-    setNotifications(data);
-    setLoading(false);
+    try {
+      const data = await api().list();
+      setNotifications(data);
+    } catch (error) {
+      console.error('Erreur chargement notifications:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { fetchNotifications(); }, []);
 
   const handleMarkAsRead = async (id: number) => {
-    await mockNotificationsApi.markAsRead(id);
+    await api().markAsRead(id);
     fetchNotifications();
   };
 
   const handleMarkAllAsRead = async () => {
-    await mockNotificationsApi.markAllAsRead();
+    await api().markAllAsRead();
     fetchNotifications();
   };
 
   const handleDelete = async (id: number) => {
-    await mockNotificationsApi.delete(id);
+    await api().delete(id);
     fetchNotifications();
   };
 
@@ -74,7 +82,7 @@ const NotificationsPage = () => {
     return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
   };
 
-  if (loading) return <div className="flex items-center justify-center py-20"><div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" /></div>;
+  if (loading) return <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
 
   return (
     <div className="space-y-6">
@@ -83,14 +91,11 @@ const NotificationsPage = () => {
           <h1 className="text-2xl font-bold text-foreground">Notifications</h1>
           <p className="text-sm text-muted-foreground">{unreadCount} non lue{unreadCount !== 1 ? 's' : ''}</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={handleMarkAllAsRead} disabled={unreadCount === 0}>
-            <CheckCheck className="mr-2 h-4 w-4" /> Tout marquer comme lu
-          </Button>
-        </div>
+        <Button variant="outline" size="sm" onClick={handleMarkAllAsRead} disabled={unreadCount === 0}>
+          <CheckCheck className="mr-2 h-4 w-4" /> Tout marquer comme lu
+        </Button>
       </div>
 
-      {/* Filter tabs */}
       <div className="flex gap-2">
         {(['all', 'unread', 'read'] as const).map((f) => (
           <Button key={f} variant={filter === f ? 'default' : 'outline'} size="sm" onClick={() => setFilter(f)}>
@@ -100,7 +105,6 @@ const NotificationsPage = () => {
         ))}
       </div>
 
-      {/* Notification list */}
       <div className="space-y-3">
         {filtered.length === 0 ? (
           <Card>

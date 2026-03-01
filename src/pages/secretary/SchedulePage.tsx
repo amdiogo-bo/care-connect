@@ -1,10 +1,14 @@
-import { useState, useMemo } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { USE_MOCK } from '@/lib/useMock';
+import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { mockAppointments, mockDoctors } from '@/data/mockData';
+import { secretaryApi } from '@/api/secretary';
+import { Appointment } from '@/api/appointments';
+import { Doctor } from '@/api/doctors';
 import { cn } from '@/lib/utils';
 
 const statusColors: Record<string, string> = {
@@ -18,6 +22,9 @@ const statusColors: Record<string, string> = {
 const SecretarySchedulePage = () => {
   const [selectedDoctor, setSelectedDoctor] = useState('all');
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [doctors, setDoctors] = useState<Doctor[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const fmt = (d: Date) => d.toISOString().split('T')[0];
 
@@ -31,13 +38,38 @@ const SecretarySchedulePage = () => {
 
   const hours = Array.from({ length: 11 }, (_, i) => i + 8);
 
-  const doctors = selectedDoctor === 'all' ? mockDoctors : mockDoctors.filter((d) => String(d.id) === selectedDoctor);
+  useEffect(() => {
+    const load = async () => {
+      try {
+        if (USE_MOCK) {
+          setAppointments([...mockAppointments]);
+          setDoctors([...mockDoctors]);
+        } else {
+          const [scheduleData, docsData] = await Promise.all([
+            secretaryApi.schedule({ start_date: fmt(weekDays[0]), end_date: fmt(weekDays[6]) }),
+            secretaryApi.assignedDoctors(),
+          ]);
+          setAppointments(Array.isArray(scheduleData) ? scheduleData : scheduleData?.appointments || []);
+          setDoctors(Array.isArray(docsData) ? docsData : []);
+        }
+      } catch (error) {
+        console.error('Erreur chargement planning:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, [currentDate]);
+
+  const displayDoctors = selectedDoctor === 'all' ? doctors : doctors.filter((d) => String(d.id) === selectedDoctor);
 
   const navigate = (dir: number) => {
     const d = new Date(currentDate);
     d.setDate(d.getDate() + dir * 7);
     setCurrentDate(d);
   };
+
+  if (loading) return <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
 
   return (
     <div className="space-y-4">
@@ -47,7 +79,7 @@ const SecretarySchedulePage = () => {
           <SelectTrigger className="w-56"><SelectValue placeholder="Filtrer par médecin" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Tous les médecins</SelectItem>
-            {mockDoctors.map((d) => <SelectItem key={d.id} value={String(d.id)}>Dr. {d.first_name} {d.last_name}</SelectItem>)}
+            {doctors.map((d) => <SelectItem key={d.id} value={String(d.id)}>Dr. {d.first_name} {d.last_name}</SelectItem>)}
           </SelectContent>
         </Select>
       </div>
@@ -58,7 +90,7 @@ const SecretarySchedulePage = () => {
         <Button variant="ghost" size="icon" onClick={() => navigate(1)}><ChevronRight className="h-5 w-5" /></Button>
       </div>
 
-      {doctors.map((doc) => (
+      {displayDoctors.map((doc) => (
         <Card key={doc.id}>
           <CardContent className="p-0">
             <div className="border-b p-3">
@@ -80,7 +112,7 @@ const SecretarySchedulePage = () => {
                   <div key={hour} className="grid border-b" style={{ gridTemplateColumns: `60px repeat(7, 1fr)` }}>
                     <div className="flex items-center border-r px-1 text-[10px] text-muted-foreground">{hour}:00</div>
                     {weekDays.map((d) => {
-                      const apts = mockAppointments.filter(
+                      const apts = appointments.filter(
                         (a) => a.doctor_id === doc.id && a.date === fmt(d) && parseInt(a.start_time) === hour && a.status !== 'cancelled'
                       );
                       return (

@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
+import { USE_MOCK } from '@/lib/useMock';
 import { mockDashboardApi } from '@/data/mockApi';
+import { dashboardApi } from '@/api/dashboard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Users, Calendar, BarChart3, UserCog, Loader2, TrendingUp, Activity, Stethoscope } from 'lucide-react';
@@ -15,9 +17,16 @@ const AdminDashboard = () => {
 
   useEffect(() => {
     const load = async () => {
-      const res = await mockDashboardApi.admin();
-      setData(res);
-      setLoading(false);
+      try {
+        const res = USE_MOCK
+          ? await mockDashboardApi.admin()
+          : await dashboardApi.admin();
+        setData(res);
+      } catch (error) {
+        console.error('Erreur chargement dashboard admin:', error);
+      } finally {
+        setLoading(false);
+      }
     };
     load();
   }, []);

@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { USE_MOCK } from '@/lib/useMock';
 import { mockDashboardApi } from '@/data/mockApi';
+import { dashboardApi } from '@/api/dashboard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -18,9 +20,16 @@ const PatientDashboard = () => {
 
   useEffect(() => {
     const load = async () => {
-      const res = await mockDashboardApi.patient(user!.id);
-      setData(res);
-      setLoading(false);
+      try {
+        const res = USE_MOCK
+          ? await mockDashboardApi.patient(user!.id)
+          : await dashboardApi.patient();
+        setData(res);
+      } catch (error) {
+        console.error('Erreur chargement dashboard patient:', error);
+      } finally {
+        setLoading(false);
+      }
     };
     if (user) load();
   }, [user]);

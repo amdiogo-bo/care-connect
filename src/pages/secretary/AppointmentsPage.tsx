@@ -1,8 +1,9 @@
-import { useState, useMemo } from 'react';
-import { Search, Plus, Edit, XCircle, CheckCircle } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { USE_MOCK } from '@/lib/useMock';
+import { Search, Plus, XCircle, CheckCircle, Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -10,7 +11,9 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { mockAppointments, mockDoctors, mockUsers, addMockAppointment, updateAppointmentStatus, generateTimeSlots } from '@/data/mockData';
-import { Appointment } from '@/api/appointments';
+import { appointmentsApi, Appointment } from '@/api/appointments';
+import { doctorsApi, Doctor } from '@/api/doctors';
+import { secretaryApi } from '@/api/secretary';
 
 const statusLabels: Record<string, string> = {
   scheduled: 'Planifié', confirmed: 'Confirmé', in_progress: 'En cours', completed: 'Terminé', cancelled: 'Annulé',
@@ -25,7 +28,10 @@ const AppointmentsPage = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [doctorFilter, setDoctorFilter] = useState('all');
   const [showCreate, setShowCreate] = useState(false);
-  const [, setRefresh] = useState(0);
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [doctors, setDoctors] = useState<Doctor[]>([]);
+  const [patients, setPatients] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   // Create form
   const [formDoctor, setFormDoctor] = useState('');
@@ -35,10 +41,34 @@ const AppointmentsPage = () => {
   const [formType, setFormType] = useState('consultation');
   const [formReason, setFormReason] = useState('');
 
-  const patients = mockUsers.filter((u) => u.role === 'patient');
+  useEffect(() => {
+    const load = async () => {
+      try {
+        if (USE_MOCK) {
+          setAppointments([...mockAppointments]);
+          setDoctors([...mockDoctors]);
+          setPatients(mockUsers.filter((u) => u.role === 'patient'));
+        } else {
+          const [aptsData, docsData, patientsData] = await Promise.all([
+            appointmentsApi.list(),
+            secretaryApi.assignedDoctors(),
+            secretaryApi.patients(),
+          ]);
+          setAppointments(Array.isArray(aptsData) ? aptsData : []);
+          setDoctors(Array.isArray(docsData) ? docsData : []);
+          setPatients(Array.isArray(patientsData) ? patientsData : []);
+        }
+      } catch (error) {
+        console.error('Erreur chargement:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, []);
 
   const filtered = useMemo(() => {
-    return mockAppointments
+    return appointments
       .filter((a) => {
         const matchSearch = `${a.patient?.first_name} ${a.patient?.last_name} ${a.doctor?.first_name} ${a.doctor?.last_name}`.toLowerCase().includes(search.toLowerCase());
         const matchStatus = statusFilter === 'all' || a.status === statusFilter;
@@ -46,41 +76,62 @@ const AppointmentsPage = () => {
         return matchSearch && matchStatus && matchDoctor;
       })
       .sort((a, b) => b.date.localeCompare(a.date) || b.start_time.localeCompare(a.start_time));
-  }, [search, statusFilter, doctorFilter, mockAppointments.length]);
+  }, [search, statusFilter, doctorFilter, appointments]);
 
   const slots = formDoctor && formDate ? generateTimeSlots(Number(formDoctor), formDate).filter((s) => s.available) : [];
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     if (!formDoctor || !formPatient || !formDate || !formSlot) {
       toast({ title: 'Erreur', description: 'Veuillez remplir tous les champs obligatoires.', variant: 'destructive' });
       return;
     }
     const [start, end] = formSlot.split('-');
-    const doctor = mockDoctors.find((d) => d.id === Number(formDoctor));
-    const patient = patients.find((p) => p.id === Number(formPatient));
-    addMockAppointment({
-      patient_id: Number(formPatient),
-      doctor_id: Number(formDoctor),
-      date: formDate,
-      start_time: start,
-      end_time: end,
-      status: 'confirmed',
-      type: formType as Appointment['type'],
-      reason: formReason,
-      patient: patient ? { id: patient.id, first_name: patient.first_name, last_name: patient.last_name, email: patient.email } : undefined,
-      doctor: doctor ? { id: doctor.id, first_name: doctor.first_name, last_name: doctor.last_name, doctor: doctor.doctor ? { specialization: doctor.doctor.specialization } : undefined } : undefined,
-    });
-    setShowCreate(false);
-    setFormDoctor(''); setFormPatient(''); setFormDate(''); setFormSlot(''); setFormReason('');
-    setRefresh((r) => r + 1);
-    toast({ title: 'Rendez-vous créé' });
+    try {
+      if (USE_MOCK) {
+        const doctor = doctors.find((d) => d.id === Number(formDoctor));
+        const patient = patients.find((p) => p.id === Number(formPatient));
+        addMockAppointment({
+          patient_id: Number(formPatient), doctor_id: Number(formDoctor), date: formDate,
+          start_time: start, end_time: end, status: 'confirmed', type: formType as Appointment['type'], reason: formReason,
+          patient: patient ? { id: patient.id, first_name: patient.first_name, last_name: patient.last_name, email: patient.email } : undefined,
+          doctor: doctor ? { id: doctor.id, first_name: doctor.first_name, last_name: doctor.last_name, doctor: doctor.doctor ? { specialization: doctor.doctor.specialization } : undefined } : undefined,
+        });
+        setAppointments([...mockAppointments]);
+      } else {
+        await secretaryApi.createAppointment({
+          patient_id: Number(formPatient), doctor_id: Number(formDoctor), date: formDate,
+          start_time: start, end_time: end, type: formType, reason: formReason,
+        });
+        const data = await appointmentsApi.list();
+        setAppointments(Array.isArray(data) ? data : []);
+      }
+      setShowCreate(false);
+      setFormDoctor(''); setFormPatient(''); setFormDate(''); setFormSlot(''); setFormReason('');
+      toast({ title: 'Rendez-vous créé' });
+    } catch (error) {
+      console.error('Erreur création:', error);
+      toast({ title: 'Erreur', description: 'Impossible de créer le rendez-vous.', variant: 'destructive' });
+    }
   };
 
-  const handleStatusChange = (id: number, status: Appointment['status']) => {
-    updateAppointmentStatus(id, status);
-    setRefresh((r) => r + 1);
-    toast({ title: 'Statut mis à jour' });
+  const handleStatusChange = async (id: number, status: Appointment['status']) => {
+    try {
+      if (USE_MOCK) {
+        updateAppointmentStatus(id, status);
+        setAppointments([...mockAppointments]);
+      } else {
+        await appointmentsApi.updateStatus(id, status);
+        const data = await appointmentsApi.list();
+        setAppointments(Array.isArray(data) ? data : []);
+      }
+      toast({ title: 'Statut mis à jour' });
+    } catch (error) {
+      console.error('Erreur:', error);
+      toast({ title: 'Erreur', variant: 'destructive' });
+    }
   };
+
+  if (loading) return <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
 
   return (
     <div className="space-y-6">
@@ -105,7 +156,7 @@ const AppointmentsPage = () => {
           <SelectTrigger className="w-48"><SelectValue placeholder="Médecin" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Tous les médecins</SelectItem>
-            {mockDoctors.map((d) => <SelectItem key={d.id} value={String(d.id)}>Dr. {d.first_name} {d.last_name}</SelectItem>)}
+            {doctors.map((d) => <SelectItem key={d.id} value={String(d.id)}>Dr. {d.first_name} {d.last_name}</SelectItem>)}
           </SelectContent>
         </Select>
       </div>
@@ -148,14 +199,14 @@ const AppointmentsPage = () => {
               <Label>Patient</Label>
               <Select value={formPatient} onValueChange={setFormPatient}>
                 <SelectTrigger><SelectValue placeholder="Choisir un patient" /></SelectTrigger>
-                <SelectContent>{patients.map((p) => <SelectItem key={p.id} value={String(p.id)}>{p.first_name} {p.last_name}</SelectItem>)}</SelectContent>
+                <SelectContent>{patients.map((p: any) => <SelectItem key={p.id} value={String(p.id)}>{p.first_name} {p.last_name}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
               <Label>Médecin</Label>
               <Select value={formDoctor} onValueChange={setFormDoctor}>
                 <SelectTrigger><SelectValue placeholder="Choisir un médecin" /></SelectTrigger>
-                <SelectContent>{mockDoctors.map((d) => <SelectItem key={d.id} value={String(d.id)}>Dr. {d.first_name} {d.last_name} - {d.doctor?.specialization}</SelectItem>)}</SelectContent>
+                <SelectContent>{doctors.map((d) => <SelectItem key={d.id} value={String(d.id)}>Dr. {d.first_name} {d.last_name} - {d.doctor?.specialization}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
