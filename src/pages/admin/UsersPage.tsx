@@ -1,8 +1,9 @@
-import { useState } from 'react';
-import { Search, Plus, Edit2, Trash2, UserCog } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { USE_MOCK } from '@/lib/useMock';
+import { Search, Plus, Edit2, Trash2, Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -11,6 +12,7 @@ import { Label } from '@/components/ui/label';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { mockUsers, addUser, updateUser, deleteUser } from '@/data/mockData';
+import { adminApi } from '@/api/admin';
 
 const roleLabels: Record<string, string> = { patient: 'Patient', doctor: 'Médecin', secretary: 'Secrétaire', admin: 'Admin' };
 const roleColors: Record<string, string> = { patient: 'bg-primary/10 text-primary', doctor: 'bg-accent/10 text-accent', secretary: 'bg-warning/10 text-warning', admin: 'bg-destructive/10 text-destructive' };
@@ -21,11 +23,28 @@ const UsersPage = () => {
   const [roleFilter, setRoleFilter] = useState('all');
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
-  const [, setRefresh] = useState(0);
-
+  const [users, setUsers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [form, setForm] = useState({ first_name: '', last_name: '', email: '', phone: '', role: 'patient', password: 'password' });
 
-  const filtered = mockUsers.filter((u) => {
+  const loadUsers = async () => {
+    try {
+      if (USE_MOCK) {
+        setUsers([...mockUsers]);
+      } else {
+        const data = await adminApi.listUsers();
+        setUsers(Array.isArray(data) ? data : data?.data || []);
+      }
+    } catch (error) {
+      console.error('Erreur chargement utilisateurs:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { loadUsers(); }, []);
+
+  const filtered = users.filter((u: any) => {
     const matchSearch = `${u.first_name} ${u.last_name} ${u.email}`.toLowerCase().includes(search.toLowerCase());
     const matchRole = roleFilter === 'all' || u.role === roleFilter;
     return matchSearch && matchRole;
@@ -38,7 +57,7 @@ const UsersPage = () => {
   };
 
   const openEdit = (id: number) => {
-    const u = mockUsers.find((usr) => usr.id === id);
+    const u = users.find((usr: any) => usr.id === id);
     if (u) {
       setForm({ first_name: u.first_name, last_name: u.last_name, email: u.email, phone: u.phone || '', role: u.role, password: '' });
       setEditId(id);
@@ -46,27 +65,52 @@ const UsersPage = () => {
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form.first_name || !form.last_name || !form.email) {
       toast({ title: 'Erreur', description: 'Veuillez remplir les champs obligatoires.', variant: 'destructive' });
       return;
     }
-    if (editId) {
-      updateUser(editId, { first_name: form.first_name, last_name: form.last_name, email: form.email, phone: form.phone, role: form.role as any, ...(form.password ? { password: form.password } : {}) });
-      toast({ title: 'Utilisateur mis à jour' });
-    } else {
-      addUser({ first_name: form.first_name, last_name: form.last_name, email: form.email, phone: form.phone, role: form.role as any, password: form.password || 'password' });
-      toast({ title: 'Utilisateur créé' });
+    try {
+      if (USE_MOCK) {
+        if (editId) {
+          updateUser(editId, { first_name: form.first_name, last_name: form.last_name, email: form.email, phone: form.phone, role: form.role as any, ...(form.password ? { password: form.password } : {}) });
+        } else {
+          addUser({ first_name: form.first_name, last_name: form.last_name, email: form.email, phone: form.phone, role: form.role as any, password: form.password || 'password' });
+        }
+        setUsers([...mockUsers]);
+      } else {
+        if (editId) {
+          await adminApi.updateUser(editId, { ...form, ...(form.password ? {} : { password: undefined }) });
+        } else {
+          await adminApi.createUser(form);
+        }
+        await loadUsers();
+      }
+      toast({ title: editId ? 'Utilisateur mis à jour' : 'Utilisateur créé' });
+      setShowForm(false);
+    } catch (error) {
+      console.error('Erreur sauvegarde:', error);
+      toast({ title: 'Erreur', variant: 'destructive' });
     }
-    setShowForm(false);
-    setRefresh((r) => r + 1);
   };
 
-  const handleDelete = (id: number) => {
-    deleteUser(id);
-    setRefresh((r) => r + 1);
-    toast({ title: 'Utilisateur supprimé' });
+  const handleDelete = async (id: number) => {
+    try {
+      if (USE_MOCK) {
+        deleteUser(id);
+        setUsers([...mockUsers]);
+      } else {
+        await adminApi.deleteUser(id);
+        await loadUsers();
+      }
+      toast({ title: 'Utilisateur supprimé' });
+    } catch (error) {
+      console.error('Erreur suppression:', error);
+      toast({ title: 'Erreur', variant: 'destructive' });
+    }
   };
+
+  if (loading) return <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
 
   return (
     <div className="space-y-6">
@@ -102,7 +146,7 @@ const UsersPage = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((u) => (
+              {filtered.map((u: any) => (
                 <TableRow key={u.id}>
                   <TableCell className="font-medium">{u.first_name} {u.last_name}</TableCell>
                   <TableCell>{u.email}</TableCell>

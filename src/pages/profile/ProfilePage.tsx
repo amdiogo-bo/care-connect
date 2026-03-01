@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { Save, User, Stethoscope, Heart, Phone, MapPin, Calendar, Droplets, AlertTriangle, Users } from 'lucide-react';
+import { USE_MOCK } from '@/lib/useMock';
+import { Save, User, Stethoscope, Heart, Phone, MapPin, Calendar, Droplets, AlertTriangle, Users, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -9,30 +10,69 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { mockProfiles, mockDoctors, mockAppointments, mockUsers, updateProfile, UserProfile } from '@/data/mockData';
+import { authApi } from '@/api/auth';
+import { patientApi } from '@/api/patients';
 
 const roleLabels: Record<string, string> = {
-  patient: 'Patient',
-  doctor: 'Médecin',
-  secretary: 'Secrétaire',
-  admin: 'Administrateur',
+  patient: 'Patient', doctor: 'Médecin', secretary: 'Secrétaire', admin: 'Administrateur',
 };
 
 const ProfilePage = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [medicalHistory, setMedicalHistory] = useState<any[]>([]);
 
   useEffect(() => {
-    if (user) {
+    if (!user) return;
+    if (USE_MOCK) {
       const p = mockProfiles.find((pr) => pr.user_id === user.id);
       setProfile(p ? { ...p } : { user_id: user.id });
+      setMedicalHistory(
+        mockAppointments
+          .filter((a) => a.patient_id === user.id && a.status === 'completed')
+          .sort((a, b) => b.date.localeCompare(a.date))
+          .slice(0, 5)
+      );
+    } else {
+      // Load from API
+      const load = async () => {
+        try {
+          if (user.role === 'patient') {
+            const history = await patientApi.medicalHistory();
+            setMedicalHistory(Array.isArray(history) ? history : []);
+          }
+        } catch (error) {
+          console.error('Erreur chargement profil:', error);
+        }
+      };
+      setProfile({ user_id: user.id });
+      load();
     }
   }, [user]);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!user || !profile) return;
-    updateProfile(user.id, profile);
-    toast({ title: 'Profil mis à jour', description: 'Vos informations ont été enregistrées.' });
+    setSaving(true);
+    try {
+      if (USE_MOCK) {
+        updateProfile(user.id, profile);
+      } else {
+        await authApi.updateProfile({
+          first_name: user.first_name,
+          last_name: user.last_name,
+          email: user.email,
+          phone: user.phone || '',
+        });
+      }
+      toast({ title: 'Profil mis à jour', description: 'Vos informations ont été enregistrées.' });
+    } catch (error) {
+      console.error('Erreur sauvegarde profil:', error);
+      toast({ title: 'Erreur', description: 'Impossible de sauvegarder.', variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
   };
 
   const update = (key: keyof UserProfile, value: unknown) => {
@@ -56,7 +96,6 @@ const ProfilePage = () => {
         </div>
       </div>
 
-      {/* Common info */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><User className="h-5 w-5" /> Informations personnelles</CardTitle>
@@ -81,7 +120,6 @@ const ProfilePage = () => {
         </CardContent>
       </Card>
 
-      {/* Patient-specific */}
       {user.role === 'patient' && (
         <Card>
           <CardHeader>
@@ -112,15 +150,11 @@ const ProfilePage = () => {
               <Input value={profile.emergency_contact || ''} onChange={(e) => update('emergency_contact', e.target.value)} placeholder="+221 ..." />
             </div>
 
-            {/* Medical history (read-only) */}
-            <div className="mt-4">
-              <h3 className="mb-2 text-sm font-semibold text-foreground">Historique médical récent</h3>
-              <div className="space-y-2">
-                {mockAppointments
-                  .filter((a) => a.patient_id === user.id && a.status === 'completed')
-                  .sort((a, b) => b.date.localeCompare(a.date))
-                  .slice(0, 5)
-                  .map((a) => (
+            {medicalHistory.length > 0 && (
+              <div className="mt-4">
+                <h3 className="mb-2 text-sm font-semibold text-foreground">Historique médical récent</h3>
+                <div className="space-y-2">
+                  {medicalHistory.map((a: any) => (
                     <div key={a.id} className="flex items-center justify-between rounded-lg border p-3">
                       <div>
                         <p className="text-sm font-medium">Dr. {a.doctor?.first_name} {a.doctor?.last_name}</p>
@@ -129,16 +163,13 @@ const ProfilePage = () => {
                       <span className="text-xs text-muted-foreground">{new Date(a.date).toLocaleDateString('fr-FR')}</span>
                     </div>
                   ))}
-                {mockAppointments.filter((a) => a.patient_id === user.id && a.status === 'completed').length === 0 && (
-                  <p className="text-sm text-muted-foreground">Aucun historique disponible.</p>
-                )}
+                </div>
               </div>
-            </div>
+            )}
           </CardContent>
         </Card>
       )}
 
-      {/* Doctor-specific */}
       {user.role === 'doctor' && (
         <Card>
           <CardHeader>
@@ -146,14 +177,8 @@ const ProfilePage = () => {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label>Spécialité</Label>
-                <Input value={user.doctor?.specialization || ''} disabled />
-              </div>
-              <div className="space-y-2">
-                <Label>Bureau</Label>
-                <Input value={user.doctor?.office_number || ''} disabled />
-              </div>
+              <div className="space-y-2"><Label>Spécialité</Label><Input value={user.doctor?.specialization || ''} disabled /></div>
+              <div className="space-y-2"><Label>Bureau</Label><Input value={user.doctor?.office_number || ''} disabled /></div>
             </div>
             <div className="space-y-2">
               <Label>Prix de consultation (FCFA)</Label>
@@ -163,7 +188,6 @@ const ProfilePage = () => {
         </Card>
       )}
 
-      {/* Secretary-specific */}
       {user.role === 'secretary' && (
         <Card>
           <CardHeader>
@@ -172,7 +196,7 @@ const ProfilePage = () => {
           <CardContent>
             <div className="space-y-2">
               {(profile.assigned_doctors || []).map((docId) => {
-                const doc = mockDoctors.find((d) => d.id === docId);
+                const doc = USE_MOCK ? mockDoctors.find((d) => d.id === docId) : null;
                 return doc ? (
                   <div key={docId} className="flex items-center gap-3 rounded-lg border p-3">
                     <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
@@ -193,7 +217,6 @@ const ProfilePage = () => {
         </Card>
       )}
 
-      {/* Admin-specific */}
       {user.role === 'admin' && (
         <Card>
           <CardHeader>
@@ -202,15 +225,15 @@ const ProfilePage = () => {
           <CardContent>
             <div className="grid gap-3 sm:grid-cols-3">
               <div className="rounded-lg border p-4 text-center">
-                <p className="text-2xl font-bold text-primary">{mockUsers.length}</p>
+                <p className="text-2xl font-bold text-primary">{USE_MOCK ? mockUsers.length : '—'}</p>
                 <p className="text-xs text-muted-foreground">Utilisateurs</p>
               </div>
               <div className="rounded-lg border p-4 text-center">
-                <p className="text-2xl font-bold text-accent">{mockDoctors.length}</p>
+                <p className="text-2xl font-bold text-accent">{USE_MOCK ? mockDoctors.length : '—'}</p>
                 <p className="text-xs text-muted-foreground">Médecins</p>
               </div>
               <div className="rounded-lg border p-4 text-center">
-                <p className="text-2xl font-bold text-warning">{mockAppointments.length}</p>
+                <p className="text-2xl font-bold text-warning">{USE_MOCK ? mockAppointments.length : '—'}</p>
                 <p className="text-xs text-muted-foreground">Rendez-vous</p>
               </div>
             </div>
@@ -218,7 +241,10 @@ const ProfilePage = () => {
         </Card>
       )}
 
-      <Button size="lg" onClick={handleSave}><Save className="mr-2 h-4 w-4" /> Enregistrer le profil</Button>
+      <Button size="lg" onClick={handleSave} disabled={saving}>
+        {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+        Enregistrer le profil
+      </Button>
     </div>
   );
 };

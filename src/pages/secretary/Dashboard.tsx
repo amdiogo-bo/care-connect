@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
+import { USE_MOCK } from '@/lib/useMock';
 import { mockDashboardApi } from '@/data/mockApi';
+import { dashboardApi } from '@/api/dashboard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Calendar, Users, ClipboardList, Clock, Loader2, Stethoscope, UserCircle } from 'lucide-react';
@@ -13,9 +15,16 @@ const SecretaryDashboard = () => {
 
   useEffect(() => {
     const load = async () => {
-      const res = await mockDashboardApi.secretary();
-      setData(res);
-      setLoading(false);
+      try {
+        const res = USE_MOCK
+          ? await mockDashboardApi.secretary()
+          : await dashboardApi.secretary();
+        setData(res);
+      } catch (error) {
+        console.error('Erreur chargement dashboard secrétaire:', error);
+      } finally {
+        setLoading(false);
+      }
     };
     load();
   }, []);

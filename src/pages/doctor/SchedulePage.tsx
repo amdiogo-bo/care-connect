@@ -1,6 +1,7 @@
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { ChevronLeft, ChevronRight, Clock, User } from 'lucide-react';
+import { USE_MOCK } from '@/lib/useMock';
+import { ChevronLeft, ChevronRight, Clock, User, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -8,7 +9,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { mockAppointments, updateAppointmentStatus } from '@/data/mockData';
-import { Appointment } from '@/api/appointments';
+import { appointmentsApi, Appointment } from '@/api/appointments';
+import { doctorsApi } from '@/api/doctors';
 import { cn } from '@/lib/utils';
 
 const statusColors: Record<string, string> = {
@@ -34,6 +36,8 @@ const SchedulePage = () => {
   const [view, setView] = useState<'week' | 'day'>('week');
   const [selectedApt, setSelectedApt] = useState<Appointment | null>(null);
   const [notes, setNotes] = useState('');
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const doctorId = user?.id || 0;
   const fmt = (d: Date) => d.toISOString().split('T')[0];
@@ -48,11 +52,33 @@ const SchedulePage = () => {
     });
   }, [currentDate]);
 
-  const hours = Array.from({ length: 11 }, (_, i) => i + 8); // 8-18
+  const hours = Array.from({ length: 11 }, (_, i) => i + 8);
+
+  // Charger les données
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      try {
+        if (USE_MOCK) {
+          setAppointments(mockAppointments.filter((a) => a.doctor_id === doctorId));
+        } else {
+          const startDate = fmt(weekDays[0]);
+          const endDate = fmt(weekDays[6]);
+          const data = await doctorsApi.schedule({ start_date: startDate, end_date: endDate });
+          setAppointments(Array.isArray(data) ? data : data?.appointments || []);
+        }
+      } catch (error) {
+        console.error('Erreur chargement planning:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, [doctorId, currentDate]);
 
   const getAptsForDateHour = (date: string, hour: number) =>
-    mockAppointments.filter(
-      (a) => a.doctor_id === doctorId && a.date === date && parseInt(a.start_time) === hour && a.status !== 'cancelled'
+    appointments.filter(
+      (a) => a.date === date && parseInt(a.start_time) === hour && a.status !== 'cancelled'
     );
 
   const navigate = (dir: number) => {
@@ -61,14 +87,30 @@ const SchedulePage = () => {
     setCurrentDate(d);
   };
 
-  const handleStatusChange = (id: number, status: Appointment['status']) => {
-    updateAppointmentStatus(id, status, notes || undefined);
-    setSelectedApt(null);
-    setNotes('');
-    toast({ title: 'Statut mis à jour', description: `Rendez-vous ${statusLabels[status].toLowerCase()}.` });
+  const handleStatusChange = async (id: number, status: Appointment['status']) => {
+    try {
+      if (USE_MOCK) {
+        updateAppointmentStatus(id, status, notes || undefined);
+        setAppointments(mockAppointments.filter((a) => a.doctor_id === doctorId));
+      } else {
+        await appointmentsApi.updateStatus(id, status);
+        if (notes) await appointmentsApi.addNotes(id, notes);
+        // Refresh
+        const data = await doctorsApi.schedule();
+        setAppointments(Array.isArray(data) ? data : data?.appointments || []);
+      }
+      setSelectedApt(null);
+      setNotes('');
+      toast({ title: 'Statut mis à jour', description: `Rendez-vous ${statusLabels[status].toLowerCase()}.` });
+    } catch (error) {
+      console.error('Erreur mise à jour statut:', error);
+      toast({ title: 'Erreur', description: 'Impossible de mettre à jour le statut.', variant: 'destructive' });
+    }
   };
 
   const displayDays = view === 'week' ? weekDays : [currentDate];
+
+  if (loading) return <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
 
   return (
     <div className="space-y-4">

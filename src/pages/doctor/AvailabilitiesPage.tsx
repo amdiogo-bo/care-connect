@@ -1,16 +1,18 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { Clock, Plus, Trash2, Save } from 'lucide-react';
+import { USE_MOCK } from '@/lib/useMock';
+import { Clock, Plus, Trash2, Save, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
+import { doctorsApi } from '@/api/doctors';
 
 interface DaySchedule {
   enabled: boolean;
-  slots: { start: string; end: string }[];
+  slots: { id?: number; start: string; end: string }[];
 }
 
 const defaultSchedule: Record<string, DaySchedule> = {
@@ -23,30 +25,65 @@ const defaultSchedule: Record<string, DaySchedule> = {
   Dimanche: { enabled: false, slots: [] },
 };
 
+const dayNameToNumber: Record<string, number> = {
+  Lundi: 1, Mardi: 2, Mercredi: 3, Jeudi: 4, Vendredi: 5, Samedi: 6, Dimanche: 0,
+};
+
 const AvailabilitiesPage = () => {
+  const { user } = useAuth();
   const { toast } = useToast();
   const [schedule, setSchedule] = useState<Record<string, DaySchedule>>(defaultSchedule);
+  const [loading, setLoading] = useState(!USE_MOCK);
+  const [saving, setSaving] = useState(false);
 
-  // Leaves
+  // Congés
   const [leaves, setLeaves] = useState<{ from: string; to: string; reason: string }[]>([
     { from: '2025-04-01', to: '2025-04-05', reason: 'Congé annuel' },
   ]);
   const [newLeave, setNewLeave] = useState({ from: '', to: '', reason: '' });
 
+  // Charger les disponibilités depuis l'API
+  useEffect(() => {
+    if (!USE_MOCK && user) {
+      const load = async () => {
+        try {
+          const availabilities = await doctorsApi.availabilities(user.id);
+          if (Array.isArray(availabilities) && availabilities.length > 0) {
+            const dayNames = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
+            const newSchedule: Record<string, DaySchedule> = {};
+            dayNames.forEach((name) => { newSchedule[name] = { enabled: false, slots: [] }; });
+            availabilities.forEach((a) => {
+              const dayName = dayNames[a.day_of_week];
+              if (dayName) {
+                newSchedule[dayName].enabled = true;
+                newSchedule[dayName].slots.push({ id: a.id, start: a.start_time, end: a.end_time });
+              }
+            });
+            // Reorder to start with Lundi
+            const ordered: Record<string, DaySchedule> = {};
+            ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'].forEach((d) => {
+              ordered[d] = newSchedule[d] || { enabled: false, slots: [] };
+            });
+            setSchedule(ordered);
+          }
+        } catch (error) {
+          console.error('Erreur chargement disponibilités:', error);
+        } finally {
+          setLoading(false);
+        }
+      };
+      load();
+    }
+  }, [user]);
+
   const toggleDay = (day: string) => {
-    setSchedule((s) => ({
-      ...s,
-      [day]: { ...s[day], enabled: !s[day].enabled },
-    }));
+    setSchedule((s) => ({ ...s, [day]: { ...s[day], enabled: !s[day].enabled } }));
   };
 
   const updateSlot = (day: string, idx: number, field: 'start' | 'end', value: string) => {
     setSchedule((s) => ({
       ...s,
-      [day]: {
-        ...s[day],
-        slots: s[day].slots.map((sl, i) => (i === idx ? { ...sl, [field]: value } : sl)),
-      },
+      [day]: { ...s[day], slots: s[day].slots.map((sl, i) => (i === idx ? { ...sl, [field]: value } : sl)) },
     }));
   };
 
@@ -57,7 +94,15 @@ const AvailabilitiesPage = () => {
     }));
   };
 
-  const removeSlot = (day: string, idx: number) => {
+  const removeSlot = async (day: string, idx: number) => {
+    const slot = schedule[day].slots[idx];
+    if (!USE_MOCK && slot.id) {
+      try {
+        await doctorsApi.deleteAvailability(slot.id);
+      } catch (error) {
+        console.error('Erreur suppression créneau:', error);
+      }
+    }
     setSchedule((s) => ({
       ...s,
       [day]: { ...s[day], slots: s[day].slots.filter((_, i) => i !== idx) },
@@ -74,9 +119,40 @@ const AvailabilitiesPage = () => {
     toast({ title: 'Congé ajouté' });
   };
 
-  const handleSave = () => {
-    toast({ title: 'Disponibilités enregistrées', description: 'Votre planning a été mis à jour.' });
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      if (!USE_MOCK) {
+        for (const [day, daySchedule] of Object.entries(schedule)) {
+          if (!daySchedule.enabled) continue;
+          for (const slot of daySchedule.slots) {
+            if (slot.id) {
+              await doctorsApi.updateAvailability(slot.id, {
+                day_of_week: dayNameToNumber[day],
+                start_time: slot.start,
+                end_time: slot.end,
+              });
+            } else {
+              const created = await doctorsApi.addAvailability({
+                day_of_week: dayNameToNumber[day],
+                start_time: slot.start,
+                end_time: slot.end,
+              });
+              slot.id = created.id;
+            }
+          }
+        }
+      }
+      toast({ title: 'Disponibilités enregistrées', description: 'Votre planning a été mis à jour.' });
+    } catch (error) {
+      console.error('Erreur sauvegarde:', error);
+      toast({ title: 'Erreur', description: 'Impossible de sauvegarder.', variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
   };
+
+  if (loading) return <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
 
   return (
     <div className="space-y-6">
@@ -116,7 +192,10 @@ const AvailabilitiesPage = () => {
               )}
             </div>
           ))}
-          <Button onClick={handleSave}><Save className="mr-2 h-4 w-4" /> Enregistrer</Button>
+          <Button onClick={handleSave} disabled={saving}>
+            {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+            Enregistrer
+          </Button>
         </CardContent>
       </Card>
 

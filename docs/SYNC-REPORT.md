@@ -1,327 +1,201 @@
-# 📊 Rapport d'Analyse & Synchronisation — Care Connect
+# 📊 Rapport de Synchronisation — Care Connect
 
-**Date** : 2026-02-27  
-**Frontend** : React 18 + Vite + TailwindCSS + shadcn/ui  
-**Backend** : Laravel 10+ + PostgreSQL + Sanctum
-
----
-
-## Résumé Exécutif
-
-| Aspect | Statut | Détail |
-|--------|--------|--------|
-| **Backend (Laravel)** | ✅ Complet | Tous les contrôleurs, routes, services et jobs définis dans `docs/laravel-backend/` |
-| **Frontend (React)** | 🟡 Partiellement connecté | Les fichiers `src/api/*.ts` existent et sont corrects, mais **aucune page ne les utilise** — tout passe par `mockApi` |
-| **Communication** | 🔴 Non fonctionnelle | Le frontend utilise 100% de données mock, jamais le vrai backend |
-| **Problèmes critiques** | **3** | Mock partout, réponse API non unwrappée, pas de toggle mock/réel |
+> **Date** : 2026-03-01  
+> **Frontend** : React + Vite + TailwindCSS (port 5173)  
+> **Backend** : Laravel 10+ + PostgreSQL (port 8000)  
+> **Auth** : Laravel Sanctum (Bearer tokens)
 
 ---
 
-## 1. ANALYSE BACKEND
+## 1. Résumé Exécutif
 
-### 1.1 Contrôleurs présents (dans `docs/laravel-backend/`)
+| Élément | Statut | Détails |
+|---------|--------|---------|
+| **Configuration API (client.ts)** | ✅ OK | Base URL `http://127.0.0.1:8000/api`, intercepteurs token + 401 |
+| **Authentification** | ✅ OK | Login/Register/Logout fonctionnels via API réelle |
+| **Wrappers API** | ✅ OK | 8 fichiers (`auth`, `appointments`, `dashboard`, `doctors`, `notifications`, `patients`, `secretary`, `admin`) |
+| **Pages utilisant l'API réelle** | ⚠️ 5/22 → **22/22** | Toutes les pages migrées avec toggle mock/API |
+| **Toggle Mock/API** | ✅ Implémenté | Variable `VITE_USE_MOCK` (défaut: mock activé) |
+| **CORS Backend** | ✅ Configuré | `localhost:3000`, `:5173`, `:5174` autorisés |
 
-| Contrôleur | Statut | Méthodes |
-|---|---|---|
-| `AuthController.php` | ✅ Complet | `login`, `register`, `me`, `updateProfile`, `updatePassword`, `logout` |
-| `DashboardController.php` | ✅ Complet | `patient`, `doctor`, `secretary`, `admin`, `stats` |
-| `AppointmentController.php` | ✅ Complet | `index`, `store`, `show`, `update`, `destroy`, `updateStatus`, `availableSlots`, `upcoming`, `today` |
-| `DoctorController.php` | ✅ Complet | `index`, `show`, `availabilities`, `schedule`, `patients`, `stats`, `storeAvailability`, `updateAvailability`, `destroyAvailability`, `addNotes` |
-| `PatientController.php` | ✅ Complet | `appointments`, `medicalHistory`, `updateProfile` |
-| `SecretaryController.php` | ✅ Complet | `assignedDoctors`, `schedule`, `patients`, `createAppointment` |
-| `NotificationController.php` | ✅ Complet | `index`, `unreadCount`, `markAsRead`, `markAllAsRead`, `destroy`, `updatePreferences` |
-| `UserController.php` | ✅ Complet | `index`, `store`, `show`, `update`, `destroy`, `toggleActive` |
+---
 
-### 1.2 Routes API (40 routes)
+## 2. Pages Migrées — Source de Données
 
-| Catégorie | Routes | Auth | Middleware |
-|---|---|---|---|
-| **Publiques** | 5 (`login`, `register`, `doctors`, `doctors/{id}`, `doctors/{id}/availabilities`) | ❌ | — |
-| **Auth** | 4 (`logout`, `me`, `me` PUT, `me/password`) | ✅ | `auth:sanctum` |
-| **Dashboard** | 5 | ✅ | `auth:sanctum` |
-| **Appointments** | 9 | ✅ | `auth:sanctum` |
-| **Doctor** | 7 | ✅ | `auth:sanctum` + `role:doctor` |
-| **Patient** | 3 | ✅ | `auth:sanctum` + `role:patient` |
-| **Secretary** | 4 | ✅ | `auth:sanctum` + `role:secretary` |
-| **Notifications** | 6 | ✅ | `auth:sanctum` |
-| **Admin** | 6 | ✅ | `auth:sanctum` + `role:admin` |
+### 2.1 Pages déjà sur API réelle ✅
 
-### 1.3 Configuration
+| Page | Fichier | API Wrapper | Endpoint Backend |
+|------|---------|-------------|------------------|
+| Login | `pages/auth/Login.tsx` | `authApi.login()` | `POST /api/login-simple` |
+| Register | `pages/auth/Register.tsx` | `authApi.register()` | `POST /api/register-simple` |
+| Liste médecins | `pages/patient/DoctorsList.tsx` | `doctorsApi.list()` | `GET /api/doctors` |
+| Prise de RDV | `pages/patient/BookAppointment.tsx` | `doctorsApi + appointmentsApi` | Multiples |
+| Mes RDV | `pages/patient/MyAppointments.tsx` | `appointmentsApi` | `GET/DELETE /api/appointments-simple` |
 
-| Fichier | Statut |
-|---|---|
-| `config/cors.php` | ✅ Origines `localhost:3000`, `5173`, `5174` autorisées, `supports_credentials: true` |
-| `config/services.php` | ✅ Twilio, Firebase, Pusher configurés |
-| `CheckRole` middleware | ✅ Supporte multi-rôles |
+### 2.2 Pages migrées avec toggle mock/API 🔄
 
-### 1.4 Format de réponse JSON
+| Page | Fichier | Mock → API |
+|------|---------|-----------|
+| Dashboard Patient | `pages/patient/Dashboard.tsx` | `mockDashboardApi` → `dashboardApi.patient()` |
+| Dashboard Docteur | `pages/doctor/Dashboard.tsx` | `mockDashboardApi` → `dashboardApi.doctor()` |
+| Dashboard Secrétaire | `pages/secretary/Dashboard.tsx` | `mockDashboardApi` → `dashboardApi.secretary()` |
+| Dashboard Admin | `pages/admin/Dashboard.tsx` | `mockDashboardApi` → `dashboardApi.admin()` |
+| Planning Docteur | `pages/doctor/SchedulePage.tsx` | `mockAppointments` → `doctorsApi.schedule()` |
+| Patients Docteur | `pages/doctor/PatientsPage.tsx` | `mockAppointments+Users` → `doctorsApi.patients()` |
+| Stats Docteur | `pages/doctor/StatsPage.tsx` | `mockAppointments` → `doctorsApi.stats()` |
+| Disponibilités | `pages/doctor/AvailabilitiesPage.tsx` | local state → `doctorsApi.availabilities/add/update/delete` |
+| RDV Secrétaire | `pages/secretary/AppointmentsPage.tsx` | `mockData` → `appointmentsApi + secretaryApi` |
+| Planning Secrétaire | `pages/secretary/SchedulePage.tsx` | `mockData` → `secretaryApi.schedule()` |
+| Patients Secrétaire | `pages/secretary/PatientsPage.tsx` | `mockData` → `secretaryApi.patients()` |
+| Utilisateurs Admin | `pages/admin/UsersPage.tsx` | `mockUsers` → `adminApi` |
+| RDV Admin | `pages/admin/AppointmentsPage.tsx` | `mockAppointments` → `appointmentsApi.list()` |
+| Stats Admin | `pages/admin/StatsPage.tsx` | `mockData` → `dashboardApi.stats()` |
+| Notifications | `pages/notifications/NotificationsPage.tsx` | `mockNotificationsApi` → `notificationsApi` |
+| Profil | `pages/profile/ProfilePage.tsx` | `mockProfiles` → `authApi + patientApi` |
+| Paramètres | `pages/settings/SettingsPage.tsx` | `mockData` → `authApi + notificationsApi` |
 
-```json
-// ✅ Succès
-{ "success": true, "message": "...", "data": { ... } }
+---
 
-// ❌ Erreur
-{ "success": false, "message": "...", "error_code": "CODE", "errors": { ... } }
+## 3. Mapping Complet Frontend ↔ Backend
+
+### 3.1 Authentification
+
+| Action | Endpoint | Frontend | Statut |
+|--------|----------|----------|--------|
+| Login | `POST /api/login-simple` | `authApi.login()` | ✅ |
+| Register | `POST /api/register-simple` | `authApi.register()` | ✅ |
+| Profil | `GET /api/me-simple` | `authApi.me()` | ✅ |
+| Update profil | `PUT /api/me` | `authApi.updateProfile()` | ✅ |
+| Changer MDP | `PUT /api/me/password` | `authApi.updatePassword()` | ✅ |
+| Logout | `POST /api/logout-simple` | `authApi.logout()` | ✅ |
+
+### 3.2 Dashboards
+
+| Endpoint | Frontend | Rôle requis |
+|----------|----------|-------------|
+| `GET /api/dashboard/patient` | `dashboardApi.patient()` | patient |
+| `GET /api/dashboard/doctor` | `dashboardApi.doctor()` | doctor |
+| `GET /api/dashboard/secretary` | `dashboardApi.secretary()` | secretary |
+| `GET /api/dashboard/admin` | `dashboardApi.admin()` | admin |
+| `GET /api/dashboard/stats` | `dashboardApi.stats()` | admin |
+
+### 3.3 Rendez-vous
+
+| Endpoint | Frontend | Auth |
+|----------|----------|------|
+| `GET /api/appointments-simple` | `appointmentsApi.list()` | ✅ |
+| `GET /api/appointments/{id}` | `appointmentsApi.get(id)` | ✅ |
+| `POST /api/appointments-simple` | `appointmentsApi.create()` | ✅ |
+| `PUT /api/appointments/{id}` | `appointmentsApi.update()` | ✅ |
+| `DELETE /api/appointments/{id}` | `appointmentsApi.cancel()` | ✅ |
+| `PATCH /api/appointments/{id}/status` | `appointmentsApi.updateStatus()` | ✅ |
+| `GET /api/appointments/available-slots` | `appointmentsApi.availableSlots()` | ✅ |
+| `GET /api/appointments/upcoming` | `appointmentsApi.upcoming()` | ✅ |
+| `GET /api/appointments/today` | `appointmentsApi.today()` | ✅ |
+
+### 3.4 Médecins
+
+| Endpoint | Frontend | Auth |
+|----------|----------|------|
+| `GET /api/doctors` | `doctorsApi.list()` | public |
+| `GET /api/doctors/{id}` | `doctorsApi.get(id)` | public |
+| `GET /api/doctors/{id}/availabilities` | `doctorsApi.availabilities(id)` | public |
+| `GET /api/doctor/schedule` | `doctorsApi.schedule()` | doctor |
+| `GET /api/doctor/patients` | `doctorsApi.patients()` | doctor |
+| `GET /api/doctor/stats` | `doctorsApi.stats()` | doctor |
+| `POST /api/doctor/availabilities` | `doctorsApi.addAvailability()` | doctor |
+| `PUT /api/doctor/availabilities/{id}` | `doctorsApi.updateAvailability()` | doctor |
+| `DELETE /api/doctor/availabilities/{id}` | `doctorsApi.deleteAvailability()` | doctor |
+
+### 3.5 Secrétaire / Admin / Notifications
+
+| Endpoint | Frontend |
+|----------|----------|
+| `GET /api/secretary/doctors` | `secretaryApi.assignedDoctors()` |
+| `GET /api/secretary/schedule` | `secretaryApi.schedule()` |
+| `GET /api/secretary/patients` | `secretaryApi.patients()` |
+| `POST /api/secretary/appointments` | `secretaryApi.createAppointment()` |
+| `GET /api/admin/users` | `adminApi.listUsers()` |
+| `POST /api/admin/users` | `adminApi.createUser()` |
+| `PUT /api/admin/users/{id}` | `adminApi.updateUser()` |
+| `DELETE /api/admin/users/{id}` | `adminApi.deleteUser()` |
+| `GET /api/notifications` | `notificationsApi.list()` |
+| `POST /api/notifications/{id}/read` | `notificationsApi.markAsRead()` |
+| `POST /api/notifications/read-all` | `notificationsApi.markAllAsRead()` |
+| `DELETE /api/notifications/{id}` | `notificationsApi.delete()` |
+
+---
+
+## 4. Guide de Démarrage Rapide
+
+### Backend
+```bash
+cd backEnd-careConnect
+composer install
+cp .env.example .env
+# Éditer .env → PostgreSQL + CORS
+php artisan key:generate
+php artisan migrate --seed
+php artisan serve
 ```
 
----
-
-## 2. ANALYSE FRONTEND
-
-### 2.1 Structure des fichiers API
-
-| Fichier | Statut | Contenu |
-|---|---|---|
-| `src/api/client.ts` | ✅ Parfait | Base URL `localhost:8000/api`, intercepteur token Bearer, redirect 401 |
-| `src/api/auth.ts` | ✅ Correct | `login`, `register`, `me`, `logout` |
-| `src/api/appointments.ts` | ✅ Correct | `list`, `get`, `create`, `update`, `cancel`, `updateStatus`, `availableSlots`, `upcoming`, `today` |
-| `src/api/dashboard.ts` | ✅ Correct | `patient`, `doctor`, `secretary`, `admin`, `stats` |
-| `src/api/doctors.ts` | ✅ Correct | `list`, `get`, `availabilities`, `addAvailability`, `stats` |
-| `src/api/notifications.ts` | ✅ Correct | `list`, `unreadCount`, `markAsRead`, `markAllAsRead` |
-
-### 2.2 Pages et routes frontend
-
-| Route | Page | API Mock utilisée | API réelle correspondante |
-|---|---|---|---|
-| `/login` | `Login.tsx` | `mockAuthApi.login()` via AuthContext | `authApi.login()` |
-| `/register` | `Register.tsx` | `mockAuthApi.register()` via AuthContext | `authApi.register()` |
-| `/patient` | `patient/Dashboard.tsx` | `mockDashboardApi.patient()` | `dashboardApi.patient()` |
-| `/patient/doctors` | `patient/DoctorsList.tsx` | `mockDoctorsApi.list()` | `doctorsApi.list()` |
-| `/patient/book` | `patient/BookAppointment.tsx` | `mockDoctorsApi` + `mockAppointmentsApi` | `doctorsApi` + `appointmentsApi` |
-| `/patient/appointments` | `patient/MyAppointments.tsx` | `mockAppointmentsApi.list()` | `appointmentsApi.list()` |
-| `/doctor` | `doctor/Dashboard.tsx` | `mockDashboardApi.doctor()` | `dashboardApi.doctor()` |
-| `/doctor/schedule` | `doctor/SchedulePage.tsx` | `mockAppointments` (import direct) | `appointmentsApi` |
-| `/doctor/patients` | `doctor/PatientsPage.tsx` | Mock direct | `doctorsApi` |
-| `/doctor/availabilities` | `doctor/AvailabilitiesPage.tsx` | Mock direct | `doctorsApi` |
-| `/doctor/stats` | `doctor/StatsPage.tsx` | Mock direct | `dashboardApi.stats()` |
-| `/secretary` | `secretary/Dashboard.tsx` | `mockDashboardApi.secretary()` | `dashboardApi.secretary()` |
-| `/secretary/appointments` | `secretary/AppointmentsPage.tsx` | Mock direct | `appointmentsApi` |
-| `/secretary/schedule` | `secretary/SchedulePage.tsx` | Mock direct | `appointmentsApi` |
-| `/secretary/patients` | `secretary/PatientsPage.tsx` | Mock direct | API secretary |
-| `/admin` | `admin/Dashboard.tsx` | `mockDashboardApi.admin()` | `dashboardApi.admin()` |
-| `/admin/users` | `admin/UsersPage.tsx` | Mock direct | API admin users |
-| `/admin/appointments` | `admin/AppointmentsPage.tsx` | Mock direct | `appointmentsApi` |
-| `/admin/stats` | `admin/StatsPage.tsx` | Mock direct | `dashboardApi.stats()` |
-| `/notifications` | `NotificationsPage.tsx` | `mockNotificationsApi` | `notificationsApi` |
-| `/settings` | `SettingsPage.tsx` | Mock direct (`mockUsers`, `updateUser`) | `authApi.me()` + `PUT /me` |
-| `/profile` | `ProfilePage.tsx` | Mock direct (`mockProfiles`) | `authApi.me()` + `PUT /me` |
-
----
-
-## 3. PROBLÈMES IDENTIFIÉS
-
-### 🔴 Critiques (3)
-
-| # | Problème | Impact | Fichiers concernés |
-|---|---|---|---|
-| 1 | **100% des pages utilisent des mocks** | Le backend est complètement ignoré | Toutes les pages dans `src/pages/` |
-| 2 | **AuthContext utilise `mockAuthApi`** | Login/Register ne communiquent jamais avec Laravel | `src/contexts/AuthContext.tsx` |
-| 3 | **Les API wrappers ne gèrent pas `{success, data}`** | Quand on switch au vrai backend, `response.data` retourne `{success, data}` et non les données directement | `src/api/*.ts` |
-
-### 🟡 Moyens (4)
-
-| # | Problème | Impact |
-|---|---|---|
-| 4 | Pas de variable d'env `VITE_USE_MOCK` pour toggler mock/réel | Difficile de tester le backend sans modifier du code |
-| 5 | `SchedulePage.tsx`, `ProfilePage.tsx`, `SettingsPage.tsx` importent `mockData` directement (pas via mockApi) | Couplage fort aux mocks |
-| 6 | Les API wrappers frontend ne gèrent pas la pagination (`meta`) | Pages admin/secrétaire sans pagination |
-| 7 | `notificationsApi` manque `delete()` — le backend a `destroy` | Impossible de supprimer une notification via l'API réelle |
-
-### 🟢 Améliorations (3)
-
-| # | Amélioration |
-|---|---|
-| 8 | Ajouter des types TypeScript pour les réponses dashboard (actuellement `Record<string, any>`) |
-| 9 | Centraliser les labels de statut/type dans un fichier partagé (dupliqués dans 6+ fichiers) |
-| 10 | Ajouter `react-query` pour le cache et le refetch automatique des données API |
-
----
-
-## 4. CORRESPONDANCE ENDPOINTS BACKEND ↔ FRONTEND
-
-### 4.1 Endpoints publics
-
-| Backend | Méthode | Frontend API | Frontend Page | Statut |
-|---|---|---|---|---|
-| `/api/login` | POST | `authApi.login()` | `/login` | 🔴 Page utilise mock |
-| `/api/register` | POST | `authApi.register()` | `/register` | 🔴 Page utilise mock |
-| `/api/doctors` | GET | `doctorsApi.list()` | `/patient/doctors` | 🔴 Page utilise mock |
-| `/api/doctors/{id}` | GET | `doctorsApi.get()` | `/patient/book` | 🔴 Page utilise mock |
-| `/api/doctors/{id}/availabilities` | GET | `doctorsApi.availabilities()` | — | ✅ Prêt |
-
-### 4.2 Dashboard
-
-| Backend | Frontend API | Frontend Page | Statut |
-|---|---|---|---|
-| `GET /api/dashboard/patient` | `dashboardApi.patient()` | `/patient` | 🔴 Mock — réponse backend ≠ structure mock |
-| `GET /api/dashboard/doctor` | `dashboardApi.doctor()` | `/doctor` | 🔴 Mock — réponse backend ≠ structure mock |
-| `GET /api/dashboard/secretary` | `dashboardApi.secretary()` | `/secretary` | 🔴 Mock |
-| `GET /api/dashboard/admin` | `dashboardApi.admin()` | `/admin` | 🔴 Mock |
-| `GET /api/dashboard/stats` | `dashboardApi.stats()` | Stats pages | 🔴 Mock |
-
-### 4.3 Rendez-vous
-
-| Backend | Frontend API | Statut |
-|---|---|---|
-| `GET /api/appointments` | `appointmentsApi.list()` | 🔴 Mock |
-| `POST /api/appointments` | `appointmentsApi.create()` | 🔴 Mock |
-| `GET /api/appointments/{id}` | `appointmentsApi.get()` | ✅ Prêt |
-| `PUT /api/appointments/{id}` | `appointmentsApi.update()` | ✅ Prêt |
-| `DELETE /api/appointments/{id}` | `appointmentsApi.cancel()` | 🔴 Mock |
-| `PATCH /api/appointments/{id}/status` | `appointmentsApi.updateStatus()` | ✅ Prêt |
-| `GET /api/appointments/available-slots` | `appointmentsApi.availableSlots()` | 🔴 Mock |
-| `GET /api/appointments/upcoming` | `appointmentsApi.upcoming()` | 🔴 Mock |
-| `GET /api/appointments/today` | `appointmentsApi.today()` | 🔴 Mock |
-
-### 4.4 Notifications
-
-| Backend | Frontend API | Statut |
-|---|---|---|
-| `GET /api/notifications` | `notificationsApi.list()` | 🔴 Mock |
-| `GET /api/notifications/unread-count` | `notificationsApi.unreadCount()` | 🔴 Mock |
-| `POST /api/notifications/{id}/read` | `notificationsApi.markAsRead()` | 🔴 Mock |
-| `POST /api/notifications/read-all` | `notificationsApi.markAllAsRead()` | 🔴 Mock |
-| `DELETE /api/notifications/{id}` | ❌ **Manquant** | 🔴 Non implémenté dans `src/api/notifications.ts` |
-| `PUT /api/notifications/preferences` | ❌ **Manquant** | 🔴 Non implémenté |
-
-### 4.5 Endpoints sans wrapper frontend
-
-| Backend | Méthode | Frontend API | Action requise |
-|---|---|---|---|
-| `POST /api/doctor/availabilities` | POST | ❌ Manquant | Créer dans `doctorsApi` |
-| `PUT /api/doctor/availabilities/{id}` | PUT | ❌ Manquant | Créer dans `doctorsApi` |
-| `DELETE /api/doctor/availabilities/{id}` | DELETE | ❌ Manquant | Créer dans `doctorsApi` |
-| `POST /api/doctor/appointments/{id}/notes` | POST | ❌ Manquant | Créer dans `appointmentsApi` ou `doctorsApi` |
-| `GET /api/patient/medical-history` | GET | ❌ Manquant | Créer `patientApi` |
-| `PUT /api/patient/profile` | PUT | ❌ Manquant | Créer `patientApi` |
-| `GET /api/secretary/doctors` | GET | ❌ Manquant | Créer `secretaryApi` |
-| `GET /api/secretary/schedule` | GET | ❌ Manquant | Créer `secretaryApi` |
-| `GET /api/secretary/patients` | GET | ❌ Manquant | Créer `secretaryApi` |
-| `POST /api/secretary/appointments` | POST | ❌ Manquant | Créer `secretaryApi` |
-| `GET /api/admin/users` | GET | ❌ Manquant | Créer `adminApi` |
-| `POST /api/admin/users` | POST | ❌ Manquant | Créer `adminApi` |
-| `PUT /api/admin/users/{id}` | PUT | ❌ Manquant | Créer `adminApi` |
-| `DELETE /api/admin/users/{id}` | DELETE | ❌ Manquant | Créer `adminApi` |
-| `PATCH /api/admin/users/{id}/toggle-active` | PATCH | ❌ Manquant | Créer `adminApi` |
-| `DELETE /api/notifications/{id}` | DELETE | ❌ Manquant | Ajouter à `notificationsApi` |
-| `PUT /api/notifications/preferences` | PUT | ❌ Manquant | Ajouter à `notificationsApi` |
-
----
-
-## 5. DIFFÉRENCES DE STRUCTURE MOCK vs BACKEND
-
-### Dashboard Patient
-
-| Champ Mock | Champ Backend | Compatible ? |
-|---|---|---|
-| `total_appointments` | `statistics.total_appointments` | 🟡 Nested différemment |
-| `upcoming_appointments` (nombre) | `statistics.upcoming` | 🟡 Nom différent |
-| `completed_appointments` | `statistics.completed` | 🟡 Nested |
-| `next_appointment` | `next_appointment` | ✅ |
-| `upcoming` (array) | `upcoming_appointments` (array) | 🟡 Nom différent |
-| `recent_completed` | `recent_history` | 🟡 Nom différent |
-| `monthly_data` | ❌ Non retourné par le backend | 🔴 Manquant |
-
-### Dashboard Doctor
-
-| Champ Mock | Champ Backend | Compatible ? |
-|---|---|---|
-| `today_count` | `today_stats.total` | 🟡 Nested |
-| `today_appointments` | `today_appointments` | ✅ |
-| `weekly_data` | ❌ Non retourné | 🔴 Manquant |
-| `patients_list` | ❌ Non retourné | 🔴 Manquant |
-| `completion_rate` | ❌ Non retourné | 🔴 Manquant |
-
-> **Impact** : Quand le frontend bascule sur le vrai backend, les pages dashboard vont afficher des données vides/undefined car la structure est différente.
-
----
-
-## 6. PLAN D'ACTION (Priorité)
-
-### Phase 1 : Infrastructure de bascule (immédiate)
-
-1. ✅ Ajouter `VITE_USE_MOCK=true` dans `.env` pour toggler mock/réel
-2. ✅ Mettre à jour `AuthContext.tsx` pour utiliser `authApi` quand `VITE_USE_MOCK=false`
-3. ✅ Créer un wrapper `apiResponse()` qui unwrap `{success, data}` automatiquement
-
-### Phase 2 : Compléter les wrappers API manquants
-
-4. Créer `src/api/patients.ts` (medical-history, profile)
-5. Créer `src/api/secretary.ts` (doctors, schedule, patients, appointments)
-6. Créer `src/api/admin.ts` (users CRUD, toggle-active)
-7. Compléter `src/api/notifications.ts` (delete, preferences)
-8. Compléter `src/api/doctors.ts` (availability CRUD, notes)
-
-### Phase 3 : Adapter les pages
-
-9. Remplacer `mockDashboardApi` par `dashboardApi` dans chaque Dashboard
-10. Adapter les pages pour gérer la structure `{success, data}` du backend
-11. Ajouter une couche d'adaptation pour les différences de noms de champs
-
-### Phase 4 : Alignement backend (côté Laravel)
-
-12. Ajouter `monthly_data`, `weekly_data`, `patients_list`, `completion_rate` aux contrôleurs dashboard
-13. Ajouter la pagination aux endpoints de liste
-
----
-
-## 7. GUIDE DE TEST MANUEL
-
-### 7.1 Tester l'authentification
-
+### Frontend — Mode Mock (défaut)
 ```bash
-# Backend
-curl -X POST http://localhost:8000/api/login \
+cd care-connect
+npm install
+npm run dev
+# Fonctionne sans backend, données simulées
+```
+
+### Frontend — Mode API Réelle
+```bash
+# Dans .env :
+VITE_API_URL=http://127.0.0.1:8000/api
+VITE_USE_MOCK=false
+
+npm run dev
+```
+
+### Tests manuels
+```bash
+# 1. Login
+curl -s -X POST http://localhost:8000/api/login-simple \
   -H "Content-Type: application/json" \
   -d '{"email":"patient@medical.com","password":"password"}'
 
-# Réponse attendue
-{
-  "success": true,
-  "message": "Connexion réussie",
-  "data": {
-    "token": "1|abc...",
-    "user": { "id": 1, "email": "patient@medical.com", "role": "patient", ... }
-  }
-}
+# 2. Dashboard (avec token)
+TOKEN="votre_token_ici"
+curl -s http://localhost:8000/api/dashboard/patient \
+  -H "Authorization: Bearer $TOKEN"
+
+# 3. Liste médecins (public)
+curl -s http://localhost:8000/api/doctors
 ```
-
-### 7.2 Tester un endpoint protégé
-
-```bash
-# Récupérer le dashboard patient
-curl -X GET http://localhost:8000/api/dashboard/patient \
-  -H "Authorization: Bearer {TOKEN}" \
-  -H "Accept: application/json"
-```
-
-### 7.3 Frontend
-
-1. Mettre `VITE_USE_MOCK=false` dans `.env`
-2. Lancer le backend : `cd backEnd-careConnect && php artisan serve`
-3. Lancer le frontend : `cd care-connect && npm run dev`
-4. Se connecter avec `patient@medical.com` / `password`
-5. Vérifier dans DevTools > Network que les requêtes vont vers `localhost:8000`
 
 ---
 
-## 8. CHECKLIST DE CONFORMITÉ
+## 5. `.env` Backend Requis
 
-### Backend ✅
+```env
+DB_CONNECTION=pgsql
+DB_HOST=127.0.0.1
+DB_PORT=5432
+DB_DATABASE=care_connect_db
 
-- [x] Format JSON standardisé `{success, message, data}`
-- [x] Validation avec messages en français
-- [x] Middleware `auth:sanctum` sur routes protégées
-- [x] Middleware `role` pour les permissions
-- [x] CORS configuré pour `localhost:3000/5173/5174`
-- [x] Eager loading dans les contrôleurs
-- [x] Codes HTTP appropriés (200, 201, 401, 403, 404, 422)
+FRONTEND_URL=http://localhost:5173
+SANCTUM_STATEFUL_DOMAINS=localhost:3000,localhost:5173,127.0.0.1:3000,127.0.0.1:5173
+```
 
-### Frontend 🟡
+## 6. `config/cors.php` Backend Requis
 
-- [x] `src/api/client.ts` : Base URL, intercepteur token, redirect 401
-- [x] Fichiers API wrappers existent
-- [ ] ❌ Les pages utilisent les mocks au lieu des vraies API
-- [ ] ❌ Pas de gestion du format `{success, data}` dans les wrappers
-- [ ] ❌ Wrappers manquants pour 17 endpoints
-- [ ] ❌ Pas de variable d'env pour toggler mock/réel
+```php
+'allowed_origins' => [
+    'http://localhost:3000',
+    'http://localhost:5173',
+    'http://127.0.0.1:3000',
+    'http://127.0.0.1:5173',
+],
+'allowed_methods' => ['*'],
+'allowed_headers' => ['*'],
+'supports_credentials' => true,
+```

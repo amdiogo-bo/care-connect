@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { Save, User, Bell, Shield, Eye, EyeOff } from 'lucide-react';
+import { USE_MOCK } from '@/lib/useMock';
+import { Save, User, Bell, Shield, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -9,11 +10,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { mockUsers, mockNotificationPreferences, updateUser, updateNotificationPreferences, NotificationPreferences } from '@/data/mockData';
+import { authApi } from '@/api/auth';
+import { notificationsApi } from '@/api/notifications';
 
 const SettingsPage = () => {
-  const { user, login } = useAuth();
+  const { user } = useAuth();
   const { toast } = useToast();
   const [showPassword, setShowPassword] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   // Account form
   const [email, setEmail] = useState(user?.email || '');
@@ -31,32 +35,47 @@ const SettingsPage = () => {
 
   useEffect(() => {
     if (user) {
-      const p = mockNotificationPreferences.find((np) => np.user_id === user.id);
-      if (p) setPrefs({ ...p });
+      if (USE_MOCK) {
+        const p = mockNotificationPreferences.find((np) => np.user_id === user.id);
+        if (p) setPrefs({ ...p });
+      }
+      // For API mode, prefs would be loaded from notificationsApi
     }
   }, [user]);
 
-  const handleSaveAccount = () => {
+  const handleSaveAccount = async () => {
     if (!user) return;
     if (!email.trim() || !firstName.trim() || !lastName.trim()) {
       toast({ title: 'Erreur', description: 'Veuillez remplir tous les champs obligatoires.', variant: 'destructive' });
       return;
     }
-    updateUser(user.id, { email, phone, first_name: firstName, last_name: lastName });
-    // update auth context
-    const updatedUser = mockUsers.find((u) => u.id === user.id);
-    if (updatedUser) {
-      localStorage.setItem('auth_user', JSON.stringify(updatedUser));
+    setSaving(true);
+    try {
+      if (USE_MOCK) {
+        updateUser(user.id, { email, phone, first_name: firstName, last_name: lastName });
+        const updatedUser = mockUsers.find((u) => u.id === user.id);
+        if (updatedUser) localStorage.setItem('auth_user', JSON.stringify(updatedUser));
+      } else {
+        const updated = await authApi.updateProfile({ first_name: firstName, last_name: lastName, email, phone });
+        localStorage.setItem('auth_user', JSON.stringify(updated));
+      }
+      toast({ title: 'Succès', description: 'Informations mises à jour.' });
+    } catch (error) {
+      console.error('Erreur mise à jour:', error);
+      toast({ title: 'Erreur', description: 'Impossible de mettre à jour.', variant: 'destructive' });
+    } finally {
+      setSaving(false);
     }
-    toast({ title: 'Succès', description: 'Informations mises à jour.' });
   };
 
-  const handleChangePassword = () => {
+  const handleChangePassword = async () => {
     if (!user) return;
-    const mockUser = mockUsers.find((u) => u.id === user.id);
-    if (!mockUser || mockUser.password !== currentPassword) {
-      toast({ title: 'Erreur', description: 'Mot de passe actuel incorrect.', variant: 'destructive' });
-      return;
+    if (USE_MOCK) {
+      const mockUser = mockUsers.find((u) => u.id === user.id);
+      if (!mockUser || mockUser.password !== currentPassword) {
+        toast({ title: 'Erreur', description: 'Mot de passe actuel incorrect.', variant: 'destructive' });
+        return;
+      }
     }
     if (newPassword.length < 6) {
       toast({ title: 'Erreur', description: 'Le nouveau mot de passe doit contenir au moins 6 caractères.', variant: 'destructive' });
@@ -66,17 +85,39 @@ const SettingsPage = () => {
       toast({ title: 'Erreur', description: 'Les mots de passe ne correspondent pas.', variant: 'destructive' });
       return;
     }
-    updateUser(user.id, { password: newPassword });
-    setCurrentPassword('');
-    setNewPassword('');
-    setConfirmPassword('');
-    toast({ title: 'Succès', description: 'Mot de passe modifié.' });
+    setSaving(true);
+    try {
+      if (USE_MOCK) {
+        updateUser(user.id, { password: newPassword });
+      } else {
+        await authApi.updatePassword({ current_password: currentPassword, password: newPassword, password_confirmation: confirmPassword });
+      }
+      setCurrentPassword(''); setNewPassword(''); setConfirmPassword('');
+      toast({ title: 'Succès', description: 'Mot de passe modifié.' });
+    } catch (error: any) {
+      const message = error?.response?.data?.message || 'Erreur lors du changement de mot de passe.';
+      toast({ title: 'Erreur', description: message, variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleSavePrefs = () => {
+  const handleSavePrefs = async () => {
     if (!user || !prefs) return;
-    updateNotificationPreferences(user.id, prefs);
-    toast({ title: 'Succès', description: 'Préférences de notification mises à jour.' });
+    setSaving(true);
+    try {
+      if (USE_MOCK) {
+        updateNotificationPreferences(user.id, prefs);
+      } else {
+        await notificationsApi.updatePreferences(prefs);
+      }
+      toast({ title: 'Succès', description: 'Préférences de notification mises à jour.' });
+    } catch (error) {
+      console.error('Erreur préférences:', error);
+      toast({ title: 'Erreur', variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -93,7 +134,6 @@ const SettingsPage = () => {
           <TabsTrigger value="notifications" className="gap-2"><Bell className="h-4 w-4" /> Notifications</TabsTrigger>
         </TabsList>
 
-        {/* Account */}
         <TabsContent value="account">
           <Card>
             <CardHeader>
@@ -102,29 +142,18 @@ const SettingsPage = () => {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>Prénom</Label>
-                  <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Nom</Label>
-                  <Input value={lastName} onChange={(e) => setLastName(e.target.value)} />
-                </div>
+                <div className="space-y-2"><Label>Prénom</Label><Input value={firstName} onChange={(e) => setFirstName(e.target.value)} /></div>
+                <div className="space-y-2"><Label>Nom</Label><Input value={lastName} onChange={(e) => setLastName(e.target.value)} /></div>
               </div>
-              <div className="space-y-2">
-                <Label>Email</Label>
-                <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label>Téléphone</Label>
-                <Input value={phone} onChange={(e) => setPhone(e.target.value)} />
-              </div>
-              <Button onClick={handleSaveAccount}><Save className="mr-2 h-4 w-4" /> Enregistrer</Button>
+              <div className="space-y-2"><Label>Email</Label><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} /></div>
+              <div className="space-y-2"><Label>Téléphone</Label><Input value={phone} onChange={(e) => setPhone(e.target.value)} /></div>
+              <Button onClick={handleSaveAccount} disabled={saving}>
+                {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />} Enregistrer
+              </Button>
             </CardContent>
           </Card>
         </TabsContent>
 
-        {/* Security */}
         <TabsContent value="security">
           <Card>
             <CardHeader>
@@ -141,20 +170,15 @@ const SettingsPage = () => {
                   </Button>
                 </div>
               </div>
-              <div className="space-y-2">
-                <Label>Nouveau mot de passe</Label>
-                <Input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label>Confirmer le mot de passe</Label>
-                <Input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
-              </div>
-              <Button onClick={handleChangePassword}><Shield className="mr-2 h-4 w-4" /> Modifier le mot de passe</Button>
+              <div className="space-y-2"><Label>Nouveau mot de passe</Label><Input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} /></div>
+              <div className="space-y-2"><Label>Confirmer le mot de passe</Label><Input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} /></div>
+              <Button onClick={handleChangePassword} disabled={saving}>
+                {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Shield className="mr-2 h-4 w-4" />} Modifier le mot de passe
+              </Button>
             </CardContent>
           </Card>
         </TabsContent>
 
-        {/* Notifications */}
         <TabsContent value="notifications">
           <Card>
             <CardHeader>
@@ -200,7 +224,9 @@ const SettingsPage = () => {
                       ))}
                     </div>
                   </div>
-                  <Button onClick={handleSavePrefs}><Save className="mr-2 h-4 w-4" /> Enregistrer les préférences</Button>
+                  <Button onClick={handleSavePrefs} disabled={saving}>
+                    {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />} Enregistrer les préférences
+                  </Button>
                 </>
               )}
             </CardContent>

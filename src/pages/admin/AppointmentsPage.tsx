@@ -1,11 +1,13 @@
-import { useState, useMemo } from 'react';
-import { Search } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { USE_MOCK } from '@/lib/useMock';
+import { Search, Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { mockAppointments, mockDoctors } from '@/data/mockData';
+import { mockAppointments } from '@/data/mockData';
+import { appointmentsApi, Appointment } from '@/api/appointments';
 
 const statusLabels: Record<string, string> = { scheduled: 'Planifié', confirmed: 'Confirmé', in_progress: 'En cours', completed: 'Terminé', cancelled: 'Annulé' };
 const statusColors: Record<string, string> = { scheduled: 'bg-warning/20 text-warning', confirmed: 'bg-primary/20 text-primary', in_progress: 'bg-accent/20 text-accent', completed: 'bg-accent/20 text-accent', cancelled: 'bg-destructive/20 text-destructive' };
@@ -13,15 +15,37 @@ const statusColors: Record<string, string> = { scheduled: 'bg-warning/20 text-wa
 const AdminAppointmentsPage = () => {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        if (USE_MOCK) {
+          setAppointments([...mockAppointments]);
+        } else {
+          const data = await appointmentsApi.list();
+          setAppointments(Array.isArray(data) ? data : []);
+        }
+      } catch (error) {
+        console.error('Erreur chargement RDV:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, []);
 
   const filtered = useMemo(() => {
-    return mockAppointments
+    return appointments
       .filter((a) => {
         const q = `${a.patient?.first_name} ${a.patient?.last_name} ${a.doctor?.first_name} ${a.doctor?.last_name}`.toLowerCase();
         return q.includes(search.toLowerCase()) && (statusFilter === 'all' || a.status === statusFilter);
       })
       .sort((a, b) => b.date.localeCompare(a.date));
-  }, [search, statusFilter]);
+  }, [search, statusFilter, appointments]);
+
+  if (loading) return <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
 
   return (
     <div className="space-y-6">

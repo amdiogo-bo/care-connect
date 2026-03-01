@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
+import { USE_MOCK } from '@/lib/useMock';
 import { mockDashboardApi } from '@/data/mockApi';
+import { dashboardApi } from '@/api/dashboard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Calendar, Users, CheckCircle2, Clock, Loader2, TrendingUp, Activity, UserCircle } from 'lucide-react';
@@ -16,9 +18,16 @@ const DoctorDashboard = () => {
 
   useEffect(() => {
     const load = async () => {
-      const res = await mockDashboardApi.doctor(user!.id);
-      setData(res);
-      setLoading(false);
+      try {
+        const res = USE_MOCK
+          ? await mockDashboardApi.doctor(user!.id)
+          : await dashboardApi.doctor();
+        setData(res);
+      } catch (error) {
+        console.error('Erreur chargement dashboard docteur:', error);
+      } finally {
+        setLoading(false);
+      }
     };
     if (user) load();
   }, [user]);
