@@ -1,14 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Bell, ChevronDown, LogOut, User } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
-import { notificationsApi } from '@/api/notifications';
+import { mockNotificationsApi } from '@/data/mockApi';
 import { Button } from '@/components/ui/button';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useNavigate } from 'react-router-dom';
 
@@ -19,15 +15,11 @@ const Navbar = () => {
 
   useEffect(() => {
     const fetchUnread = async () => {
-      try {
-        const res = await notificationsApi.unreadCount();
-        setUnreadCount(res.data.count);
-      } catch {
-        // API not available
-      }
+      const count = await mockNotificationsApi.unreadCount();
+      setUnreadCount(count);
     };
     fetchUnread();
-    const interval = setInterval(fetchUnread, 30000);
+    const interval = setInterval(fetchUnread, 10000);
     return () => clearInterval(interval);
   }, []);
 
@@ -45,18 +37,9 @@ const Navbar = () => {
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b bg-card px-6">
-      <div className="text-sm text-muted-foreground">
-        {roleLabels[user?.role || ''] || ''}
-      </div>
-
+      <div className="text-sm text-muted-foreground">{roleLabels[user?.role || ''] || ''}</div>
       <div className="flex items-center gap-3">
-        {/* Notifications */}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="relative"
-          onClick={() => navigate('/notifications')}
-        >
+        <Button variant="ghost" size="icon" className="relative" onClick={() => navigate('/notifications')}>
           <Bell className="h-5 w-5" />
           {unreadCount > 0 && (
             <span className="absolute -right-0.5 -top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-destructive-foreground">
@@ -64,30 +47,20 @@ const Navbar = () => {
             </span>
           )}
         </Button>
-
-        {/* User menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="gap-2 px-3">
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
                 {user?.first_name?.[0]}{user?.last_name?.[0]}
               </div>
-              <span className="hidden text-sm font-medium md:inline-block">
-                {user?.first_name} {user?.last_name}
-              </span>
+              <span className="hidden text-sm font-medium md:inline-block">{user?.first_name} {user?.last_name}</span>
               <ChevronDown className="h-4 w-4 text-muted-foreground" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuItem onClick={() => navigate('/profile')}>
-              <User className="mr-2 h-4 w-4" />
-              Mon profil
-            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => navigate('/profile')}><User className="mr-2 h-4 w-4" />Mon profil</DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={handleLogout} className="text-destructive">
-              <LogOut className="mr-2 h-4 w-4" />
-              Déconnexion
-            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleLogout} className="text-destructive"><LogOut className="mr-2 h-4 w-4" />Déconnexion</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
