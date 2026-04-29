@@ -1,5 +1,6 @@
 import { createContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { authApi, User } from '@/api/auth';
+import { isLocalApiUrl } from '@/api/client';
 
 interface AuthContextType {
   user: User | null;
@@ -40,13 +41,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const login = useCallback(async (email: string, password: string) => {
     try {
       const res = await authApi.login({ email, password });
-      const { token, user } = res.data;
+      const { token, user } = res.data.data;
       localStorage.setItem('auth_token', token);
       localStorage.setItem('auth_user', JSON.stringify(user));
       setUser(user);
       return user;
     } catch (error) {
       console.error('Login error:', error);
+      const axiosError = error as { code?: string; response?: { data?: { message?: string } } };
+      if (axiosError.code === 'ERR_NETWORK' && isLocalApiUrl()) {
+        throw new Error("Le backend local n'est pas accessible depuis la preview Lovable. Lance l'API en local sur le port 8000 et teste soit en local, soit avec une URL backend publique.");
+      }
       throw error; // Re-throw pour que le composant puisse gérer l'erreur
     }
   }, []);
@@ -61,7 +66,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     phone?: string;
   }) => {
     const res = await authApi.register(data);
-    const { token, user } = res.data;
+    const { token, user } = res.data.data;
     localStorage.setItem('auth_token', token);
     localStorage.setItem('auth_user', JSON.stringify(user));
     setUser(user);
