@@ -10,6 +10,13 @@ export interface Profile {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  notification_preferences?: {
+    email_notifications: boolean;
+    sms_notifications: boolean;
+    push_notifications: boolean;
+    appointment_reminders?: boolean;
+    system_notifications?: boolean;
+  };
   doctor?: {
     id: number;
     specialization: string;

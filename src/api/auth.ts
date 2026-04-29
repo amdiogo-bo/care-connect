@@ -1,6 +1,13 @@
 import apiClient from './client';
 
 
+export interface ApiResponse<T> {
+  success: boolean;
+  message?: string;
+  data: T;
+}
+
+
 
 export interface LoginPayload {
 
@@ -64,6 +71,10 @@ export interface LoginResponse {
 
   user: User;
 
+  token_type?: string;
+
+  expires_at?: string;
+
 }
 
 
@@ -72,19 +83,19 @@ export const authApi = {
 
   login: (data: LoginPayload) =>
 
-    apiClient.post<LoginResponse>('/login-simple', data),
+    apiClient.post<ApiResponse<LoginResponse>>('/login-simple', data),
 
 
 
   register: (data: RegisterPayload) =>
 
-    apiClient.post<LoginResponse>('/register', data),
+    apiClient.post<ApiResponse<LoginResponse>>('/register', data),
 
 
 
   me: () =>
 
-    apiClient.get<User>('/me'),
+    apiClient.get<ApiResponse<User>>('/me'),
 
 
 
