@@ -1,5 +1,13 @@
 import apiClient from './client';
 
+export interface NotificationPreferences {
+  email_notifications: boolean;
+  sms_notifications: boolean;
+  push_notifications: boolean;
+  appointment_reminders?: boolean;
+  system_notifications?: boolean;
+}
+
 export interface Notification {
   id: number;
   user_id: number;
@@ -27,4 +35,7 @@ export const notificationsApi = {
 
   markAllAsRead: () =>
     apiClient.post('/notifications/read-all'),
+
+  updatePreferences: (data: NotificationPreferences) =>
+    apiClient.put<NotificationPreferences>('/notifications/preferences', data),
 };
