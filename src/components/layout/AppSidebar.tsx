@@ -11,6 +11,8 @@ import {
   Settings,
   CalendarPlus,
   UserCog,
+  Bell,
+  User,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -89,10 +91,39 @@ const AppSidebar = () => {
       </nav>
 
       {/* Footer */}
-      <div className="border-t border-sidebar-border p-4">
+      <div className="space-y-1 border-t border-sidebar-border p-3">
+        <NavLink
+          to="/notifications"
+          className={({ isActive }) =>
+            cn(
+              'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors',
+              isActive ? 'bg-sidebar-primary text-sidebar-primary-foreground' : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+            )
+          }
+        >
+          <Bell className="h-5 w-5" />
+          Notifications
+        </NavLink>
+        <NavLink
+          to="/profile"
+          className={({ isActive }) =>
+            cn(
+              'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors',
+              isActive ? 'bg-sidebar-primary text-sidebar-primary-foreground' : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+            )
+          }
+        >
+          <User className="h-5 w-5" />
+          Mon profil
+        </NavLink>
         <NavLink
           to="/settings"
-          className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          className={({ isActive }) =>
+            cn(
+              'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors',
+              isActive ? 'bg-sidebar-primary text-sidebar-primary-foreground' : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+            )
+          }
         >
           <Settings className="h-5 w-5" />
           Paramètres

@@ -87,6 +87,29 @@ const Login = () => {
                 S'inscrire
               </Link>
             </p>
+
+            {/* Demo credentials */}
+            <div className="mt-6 rounded-lg border border-dashed bg-secondary/50 p-4">
+              <p className="mb-2 text-xs font-semibold text-foreground">🔑 Comptes démo (mot de passe : password)</p>
+              <div className="space-y-1 text-xs text-muted-foreground">
+                {[
+                  { label: 'Patient', email: 'patient@medical.com' },
+                  { label: 'Docteur', email: 'docteur@medical.com' },
+                  { label: 'Secrétaire', email: 'secretaire@medical.com' },
+                  { label: 'Admin', email: 'admin@medical.com' },
+                ].map((account) => (
+                  <button
+                    key={account.email}
+                    type="button"
+                    onClick={() => { setEmail(account.email); setPassword('password'); }}
+                    className="flex w-full items-center justify-between rounded px-2 py-1 text-left transition-colors hover:bg-secondary"
+                  >
+                    <span className="font-medium text-foreground">{account.label}</span>
+                    <span>{account.email}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>
