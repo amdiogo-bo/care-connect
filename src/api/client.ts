@@ -1,6 +1,7 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8001/api';
+export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api';
+export const isLocalApiUrl = (url = API_BASE_URL) => /\/\/(localhost|127\.0\.0\.1)(:\d+)?\b/.test(url);
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
