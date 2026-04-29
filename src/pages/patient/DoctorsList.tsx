@@ -17,8 +17,16 @@ const DoctorsList = () => {
     const fetch = async () => {
       try {
         const res = await doctorsApi.list();
-        setDoctors(res.data);
-      } catch {
+        console.log('API Response:', res);
+        console.log('Doctors data:', res.data);
+        console.log('Type of res.data:', typeof res.data);
+        console.log('Is array?', Array.isArray(res.data));
+        
+        // S'assurer que c'est un tableau
+        const doctorsData = Array.isArray(res.data) ? res.data : [];
+        setDoctors(doctorsData);
+      } catch (error) {
+        console.error('Error fetching doctors:', error);
         setDoctors([]);
       } finally {
         setLoading(false);
@@ -27,16 +35,16 @@ const DoctorsList = () => {
     fetch();
   }, []);
 
-  const filtered = doctors.filter((d) => {
+  const filtered = (Array.isArray(doctors) ? doctors : []).filter((d) => {
     const q = search.toLowerCase();
     return (
-      d.first_name.toLowerCase().includes(q) ||
-      d.last_name.toLowerCase().includes(q) ||
+      d.first_name?.toLowerCase().includes(q) ||
+      d.last_name?.toLowerCase().includes(q) ||
       d.doctor?.specialization?.toLowerCase().includes(q)
     );
   });
 
-  const specializations = [...new Set(doctors.map((d) => d.doctor?.specialization).filter(Boolean))];
+  const specializations = [...new Set((Array.isArray(doctors) ? doctors : []).map((d) => d.doctor?.specialization).filter(Boolean))];
 
   if (loading) {
     return (

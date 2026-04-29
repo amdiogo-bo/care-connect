@@ -36,8 +36,15 @@ const MyAppointments = () => {
   const fetchAppointments = async () => {
     try {
       const res = await appointmentsApi.list();
-      setAppointments(res.data);
-    } catch {
+      console.log('MyAppointments - API Response:', res);
+      console.log('MyAppointments - Appointments data:', res.data);
+      console.log('MyAppointments - Is array?', Array.isArray(res.data));
+      
+      // S'assurer que c'est un tableau
+      const appointmentsData = Array.isArray(res.data) ? res.data : [];
+      setAppointments(appointmentsData);
+    } catch (error) {
+      console.error('Error fetching appointments:', error);
       setAppointments([]);
     } finally {
       setLoading(false);
@@ -57,22 +64,22 @@ const MyAppointments = () => {
   };
 
   const now = new Date();
-  const upcoming = appointments.filter((a) => new Date(a.date) >= now && a.status !== 'cancelled' && a.status !== 'completed');
-  const past = appointments.filter((a) => new Date(a.date) < now || a.status === 'completed' || a.status === 'cancelled');
+  const upcoming = (Array.isArray(appointments) ? appointments : []).filter((a) => new Date(a.date) >= now && a.status !== 'cancelled' && a.status !== 'completed');
+  const past = (Array.isArray(appointments) ? appointments : []).filter((a) => new Date(a.date) < now || a.status === 'completed' || a.status === 'cancelled');
 
   if (loading) {
     return <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
   }
 
   const renderList = (list: Appointment[], showCancel: boolean) =>
-    list.length === 0 ? (
+    (Array.isArray(list) ? list : []).length === 0 ? (
       <div className="py-12 text-center text-muted-foreground">
         <Calendar className="mx-auto mb-3 h-10 w-10 opacity-40" />
         <p>Aucun rendez-vous</p>
       </div>
     ) : (
       <div className="space-y-3">
-        {list.map((apt) => {
+        {(Array.isArray(list) ? list : []).map((apt) => {
           const status = statusMap[apt.status] || statusMap.scheduled;
           return (
             <div key={apt.id} className="flex items-center justify-between rounded-lg border p-4 transition-colors hover:bg-secondary/50">

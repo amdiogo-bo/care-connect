@@ -38,12 +38,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
-    const res = await authApi.login({ email, password });
-    const { token, user } = res.data;
-    localStorage.setItem('auth_token', token);
-    localStorage.setItem('auth_user', JSON.stringify(user));
-    setUser(user);
-    return user;
+    try {
+      const res = await authApi.login({ email, password });
+      const { token, user } = res.data;
+      localStorage.setItem('auth_token', token);
+      localStorage.setItem('auth_user', JSON.stringify(user));
+      setUser(user);
+      return user;
+    } catch (error) {
+      console.error('Login error:', error);
+      throw error; // Re-throw pour que le composant puisse gérer l'erreur
+    }
   }, []);
 
   const register = useCallback(async (data: {

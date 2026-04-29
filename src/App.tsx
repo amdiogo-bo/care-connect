@@ -13,10 +13,36 @@ import PatientDashboard from "@/pages/patient/Dashboard";
 import DoctorsList from "@/pages/patient/DoctorsList";
 import BookAppointment from "@/pages/patient/BookAppointment";
 import MyAppointments from "@/pages/patient/MyAppointments";
+import Settings from "@/pages/Settings";
 import DoctorDashboard from "@/pages/doctor/Dashboard";
 import SecretaryDashboard from "@/pages/secretary/Dashboard";
 import AdminDashboard from "@/pages/admin/Dashboard";
 import NotFound from "./pages/NotFound";
+
+// Composants wrapper pour les dashboards avec layout
+const PatientDashboardWithLayout = () => (
+  <AppLayout>
+    <PatientDashboard />
+  </AppLayout>
+);
+
+const DoctorDashboardWithLayout = () => (
+  <AppLayout>
+    <DoctorDashboard />
+  </AppLayout>
+);
+
+const SecretaryDashboardWithLayout = () => (
+  <AppLayout>
+    <SecretaryDashboard />
+  </AppLayout>
+);
+
+const AdminDashboardWithLayout = () => (
+  <AppLayout>
+    <AdminDashboard />
+  </AppLayout>
+);
 
 const queryClient = new QueryClient();
 
@@ -29,9 +55,16 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             {/* Public */}
-            <Route path="/" element={<Navigate to="/login" replace />} />
+            <Route path="/" element={<Navigate to="/patient" replace />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/settings" element={<AppLayout><Settings /></AppLayout>} />
+
+            {/* Accès direct aux dashboards (temporaire) */}
+            <Route path="/patient" element={<PatientDashboardWithLayout />} />
+            <Route path="/doctor" element={<DoctorDashboardWithLayout />} />
+            <Route path="/secretary" element={<SecretaryDashboardWithLayout />} />
+            <Route path="/admin" element={<AdminDashboardWithLayout />} />
 
             {/* Patient */}
             <Route element={<ProtectedRoute allowedRoles={['patient']}><AppLayout /></ProtectedRoute>}>

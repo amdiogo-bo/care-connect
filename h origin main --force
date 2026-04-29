@@ -1,0 +1,17 @@
+[33m4ca2dda[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m Enable mock/real toggle
+[33ma877d2c[m Changes
+[33m6237f09[m mja du parie backend
+[33mcb94f77[m mja du partie front-end
+[33m21a2cb2[m Integrate real API wrappers
+[33me79567d[m Changes
+[33m3305fb8[m Add Laravel backend docs
+[33m53d43f6[m Changes
+[33m717d1e8[m Enhance admin notifications
+[33m906998b[m Changes
+[33m14a831a[m Dynamized dashboards RBAC
+[33m081ebf4[m Changes
+[33m509af0a[m Add mock data layer
+[33m8ebe0d4[m Changes
+[33mf29298a[m Add core API and pages for MVP
+[33m9881baa[m Changes
+[33mb331aa1[m template: new_style_vite_react_shadcn_ts_testing_2026-01-08

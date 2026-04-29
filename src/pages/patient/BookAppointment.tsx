@@ -36,17 +36,25 @@ const BookAppointment = () => {
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [availableSlots, setAvailableSlots] = useState<any[]>([]);
 
   // Load doctors
   useEffect(() => {
     const fetch = async () => {
       try {
         const res = await doctorsApi.list();
-        setDoctors(res.data);
+        console.log('BookAppointment - API Response:', res);
+        console.log('BookAppointment - Doctors data:', res.data);
+        console.log('BookAppointment - Is array?', Array.isArray(res.data));
+        
+        // S'assurer que c'est un tableau
+        const doctorsData = Array.isArray(res.data) ? res.data : [];
+        setDoctors(doctorsData);
+        
         // Pre-select if passed via state
         const preselectedId = (location.state as { doctorId?: number })?.doctorId;
         if (preselectedId) {
-          const doc = res.data.find((d) => d.id === preselectedId);
+          const doc = doctorsData.find((d) => d.id === preselectedId);
           if (doc) {
             setSelectedDoctor(doc);
             setStep(1);
@@ -65,28 +73,27 @@ const BookAppointment = () => {
   useEffect(() => {
     if (!selectedDoctor || !selectedDate) return;
     const fetch = async () => {
-      setLoadingSlots(true);
-      setSelectedSlot(null);
       try {
         const res = await appointmentsApi.availableSlots(
           selectedDoctor.id,
           format(selectedDate, 'yyyy-MM-dd')
         );
         setSlots(res.data.available_slots || []);
+        console.log('Available slots:', res.data.available_slots);
       } catch {
-        setSlots([]);
-      } finally {
-        setLoadingSlots(false);
+        console.error('Error fetching slots');
       }
     };
     fetch();
   }, [selectedDoctor, selectedDate]);
 
+  // Handle form submission
   const handleSubmit = async () => {
     if (!selectedDoctor || !selectedDate || !selectedSlot || !user) return;
-    setSubmitting(true);
+
     try {
-      await appointmentsApi.create({
+      setSubmitting(true);
+      const appointmentData = {
         patient_id: user.id,
         doctor_id: selectedDoctor.id,
         date: format(selectedDate, 'yyyy-MM-dd'),
@@ -94,7 +101,12 @@ const BookAppointment = () => {
         end_time: selectedSlot.end_time,
         type,
         reason: reason.trim() || undefined,
-      });
+      };
+
+      console.log('Creating appointment:', appointmentData);
+      const res = await appointmentsApi.create(appointmentData as any);
+      console.log('Appointment created:', res);
+
       setSuccess(true);
       toast({ title: 'Rendez-vous confirmé !', description: 'Votre rendez-vous a bien été enregistré.' });
     } catch (err: unknown) {
@@ -160,7 +172,7 @@ const BookAppointment = () => {
               <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
             ) : (
               <div className="space-y-3">
-                {doctors.map((doc) => (
+                {(Array.isArray(doctors) ? doctors : []).map((doc) => (
                   <button
                     key={doc.id}
                     onClick={() => { setSelectedDoctor(doc); setStep(1); }}

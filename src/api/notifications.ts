@@ -2,12 +2,17 @@ import apiClient from './client';
 
 export interface Notification {
   id: number;
-  type: string;
+  user_id: number;
   title: string;
   message: string;
-  read: boolean;
+  type: 'appointment' | 'system' | 'reminder' | 'profile' | 'security';
+  is_read: boolean;
   created_at: string;
-  data?: Record<string, unknown>;
+  data?: {
+    appointment_id?: number;
+    patient_name?: string;
+    doctor_name?: string;
+  };
 }
 
 export const notificationsApi = {

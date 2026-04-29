@@ -23,7 +23,7 @@ const Login = () => {
     setLoading(true);
     try {
       const user = await login(email, password);
-      navigate(`/${user.role}`);
+      navigate(`/${user.role}/dashboard`);
     } catch (err: unknown) {
       const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Identifiants incorrects';
       toast({ title: 'Erreur de connexion', description: message, variant: 'destructive' });
@@ -70,7 +70,8 @@ const Login = () => {
                 <Input
                   id="password"
                   type="password"
-                  placeholder="••••••••"
+                  autoComplete="current-password"
+                  placeholder="•••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
