@@ -23,9 +23,12 @@ const Login = () => {
     setLoading(true);
     try {
       const user = await login(email, password);
-      navigate(`/${user.role}/dashboard`);
+      navigate(`/${user.role}`);
     } catch (err: unknown) {
-      const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Identifiants incorrects';
+      const message =
+        (err as Error)?.message ||
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+        'Erreur de connexion au serveur';
       toast({ title: 'Erreur de connexion', description: message, variant: 'destructive' });
     } finally {
       setLoading(false);
